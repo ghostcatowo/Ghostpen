@@ -19,7 +19,7 @@ const DEFAULTS = {
     timeoutSec: 120,
     logs: [],
 };
-const MAX_LOGS = 50;
+const MAX_LOGS = 20;
 let curTab = 'set';
 let advOpen = false;
 let lastOriginal = null; // 직전 원문 (메모리에만 보관)
@@ -132,7 +132,7 @@ function buildMessages(input, mode, st) {
         PERSPECTIVE[mode],
         INTENSITY[st.intensity] || INTENSITY.mid,
         ...(hasInput ? [] : [EMPTY_INSTRUCTION]),
-        `[Length]\nRecommended length: ${st.minChars} to ${st.maxChars} characters, including spaces. This is only a guide: Rules 1-3 take priority over it, and do not repeat content to reach it.`,
+        `[Length]\nRecommended length: ${st.minChars} to ${st.maxChars} characters, including spaces. Rules 1-3 take priority over it, so do not add events that are not in the draft. Reach the length by describing in concrete detail the process, sensation, atmosphere, and emotion of the actions that are already there. Do not repeat the same content.`,
         `<draft>\n${hasInput ? input : ''}\n</draft>`,
     ];
     const sub = t => c.substituteParams ? c.substituteParams(t) : t;
