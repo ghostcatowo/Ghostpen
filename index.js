@@ -309,7 +309,7 @@ async function runGhostpen(mode) {
         // 결과는 항상 입력창에 넣고 경고만 기록
         const warns = [];
         if (/length|max_tokens/i.test(finish)) warns.push('결과가 출력 길이 상한에서 잘렸을 수 있어요.');
-        if (out.length < st.minChars - 200) warns.push(`권장 분량보다 많이 짧아요. (${out.length} < ${st.minChars - 200}자)`);
+        if (out.length < st.minChars - 200) warns.push('권장 분량보다 많이 짧아요.');
         const quoted = extractQuoted(input);
         const changed = quoted.filter(q => !out.includes(q)).length;
         if (changed) warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changed}개가 원문과 달라요.`);
