@@ -324,7 +324,7 @@ async function runGhostpen(mode) {
     } catch (e) {
         if (!run || run.id !== id || run.cancelled) return; // 취소는 실패 아님
         const timedOut = run.timedOut;
-        toastr.error('😢 대필 작업에 실패했어요 😢');
+        toastr.error('대필 실패 😢')?.css({ 'border-radius': '14px', 'background-color': '#e5586b', 'background-image': 'none', color: '#fff' });
         const detail = timedOut ? `${st.timeoutSec}초 안에 응답이 오지 않았어요.` : String(e?.message || e).slice(0, 600);
         addLog({
             level: 'fail', result: '❌ 실패', stage,
