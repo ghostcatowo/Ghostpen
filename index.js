@@ -2,7 +2,7 @@
 const MODULE = 'ghostpen';
 const VERSION = '0.3.1';
 
-const LENGTH_PRESETS = { short: [300, 500], normal: [600, 900], long: [1000, 1500] }; // 글자 수 (공백 포함)
+const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
 const MODE = {
     first: { label: '1인칭', icon: 'fa-user', flag: 'showFirst' },
@@ -12,7 +12,7 @@ const MODE = {
 const DEFAULTS = {
     showFirst: true, showThird: true, showKeep: true,
     intensity: 'mid',     // weak | mid | strong
-    minChars: 600, maxChars: 900,
+    minChars: 500, maxChars: 800,
     maxTokens: 5000,      // 출력 토큰 상한
     recent: 5,
     profileId: '',        // '' = 선택 안 함
@@ -308,7 +308,7 @@ async function runGhostpen(mode) {
         // 결과는 항상 입력창에 넣고 경고만 기록
         const warns = [];
         if (/length|max_tokens/i.test(finish)) warns.push('결과가 출력 길이 상한에서 잘렸을 수 있어요.');
-        if (out.length < st.minChars) warns.push(`권장 분량보다 짧아요. (${out.length} < ${st.minChars}자)`);
+        if (out.length < st.minChars - 200) warns.push(`권장 분량보다 많이 짧아요. (${out.length} < ${st.minChars - 200}자)`);
         const quoted = extractQuoted(input);
         const changed = quoted.filter(q => !out.includes(q)).length;
         if (changed) warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changed}개가 원문과 달라요.`);
