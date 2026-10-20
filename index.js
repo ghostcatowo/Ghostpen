@@ -84,6 +84,7 @@ const PERSPECTIVE = {
     keep: [
         `[Point of view: no fixed person]`,
         `- Keep the draft's person and point of view exactly as they are. Even if they are mixed, do not unify or change them.`,
+        `- Rewrite the narration naturally in line with the draft's person and point of view.`,
         `- Newly written narration follows the person and point of view of the sentence immediately before it.`,
     ].join('\n'),
 };
