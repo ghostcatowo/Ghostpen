@@ -432,9 +432,9 @@ function renderPanel(root) {
           <div class="gpen-row">${lenBtn('short', '짧게')}${lenBtn('normal', '보통')}${lenBtn('long', '길게')}</div>
           <details class="gpen-adv" ${advOpen ? 'open' : ''}>
             <summary>고급</summary>
-            <div class="gpen-field"><label>최소 글자 수 (권장)</label>${step('minChars', 50, 6000, 50, st.minChars)}</div>
-            <div class="gpen-field"><label>최대 글자 수 (권장)</label>${step('maxChars', 50, 6000, 50, st.maxChars)}</div>
-            <div class="gpen-field"><label>최대 출력 토큰 (서버 상한)</label>${step('maxTokens', 1000, 32000, 500, st.maxTokens)}</div>
+            <div class="gpen-field"><label>최소 글자 수</label>${step('minChars', 50, 6000, 50, st.minChars)}</div>
+            <div class="gpen-field"><label>최대 글자 수</label>${step('maxChars', 50, 6000, 50, st.maxChars)}</div>
+            <div class="gpen-field"><label>최대 출력 토큰</label>${step('maxTokens', 1000, 32000, 500, st.maxTokens)}</div>
             <div class="gpen-hint gpen-muted">글자 수는 공백을 포함하며, 권장 범위예요.</div>
           </details>
 
