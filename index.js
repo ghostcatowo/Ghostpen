@@ -421,11 +421,9 @@ function renderPanel(root) {
 
         <div class="gpen-pane ${curTab === 'set' ? 'on' : ''}" data-pane="set">
           <div class="gpen-row"><button type="button" class="gpen-btn gpen-restore-btn ${lastOriginal === null ? 'gpen-dim' : ''}"><i class="fa-solid fa-rotate-left"></i><span>원문 복원</span></button></div>
-          <div class="gpen-hint gpen-muted">마지막 대필 직전의 원문으로 입력창을 되돌려요. 메시지를 보내면 사라져요.</div>
 
           <div class="gpen-section-title">입력창 아이콘</div>
           <div class="gpen-row">${chip('first')}${chip('third')}${chip('keep')}</div>
-          <div class="gpen-hint gpen-muted">켠 아이콘만 입력창 위에 표시돼요. 모두 끄면 숨겨지고, 마법봉 메뉴의 Ghostpen으로 사용할 수 있어요.</div>
 
           <div class="gpen-section-title">강도</div>
           <div class="gpen-row">${segBtn('intensity', 'weak', '약')}${segBtn('intensity', 'mid', '중')}${segBtn('intensity', 'strong', '강')}</div>
@@ -437,7 +435,7 @@ function renderPanel(root) {
             <div class="gpen-field"><label>최소 글자 수 (권장)</label>${step('minChars', 50, 6000, 50, st.minChars)}</div>
             <div class="gpen-field"><label>최대 글자 수 (권장)</label>${step('maxChars', 50, 6000, 50, st.maxChars)}</div>
             <div class="gpen-field"><label>최대 출력 토큰 (서버 상한)</label>${step('maxTokens', 1000, 32000, 500, st.maxTokens)}</div>
-            <div class="gpen-hint gpen-muted">글자 수(공백 포함)는 모델에게 주는 권장 범위라 어겨도 결과는 그대로 들어가요. 토큰은 서버에 거는 출력 상한이에요. 추론 모델은 생각에도 토큰을 쓰니 넉넉하게 두세요(기본 5,000). 비용은 쓴 만큼만 나가요.</div>
+            <div class="gpen-hint gpen-muted">글자 수는 공백을 포함하며, 권장 범위예요.</div>
           </details>
 
           <div class="gpen-field"><label>참고할 최근 채팅 수</label>${step('recent', 0, 50, 1, st.recent)}</div>
@@ -446,7 +444,6 @@ function renderPanel(root) {
           <div class="gpen-field"><label>연결 프로필</label>
             <select class="text_pole" data-k="profileId">${opt('', '선택 안 함', st.profileId)}${profiles.map(p => opt(p.id, p.name, st.profileId)).join('')}</select></div>
           <div class="gpen-field"><label>시간 제한 (초)</label>${step('timeoutSec', 10, 600, 10, st.timeoutSec)}</div>
-          <div class="gpen-hint gpen-muted">'선택 안 함'은 지금 사용 중인 연결과 프리셋 그대로예요. 연결 프로필이 &lt;None&gt;이어도 돼요. 프로필을 고르면 저장된 그 프로필의 연결과 프리셋으로 요청해요. 대필 요청에만 쓰이고 전역 설정은 바뀌지 않아요.${profiles.length ? '' : ' (연결 프로필이 없어요. Connection Manager에서 만들면 여기서 고를 수 있어요.)'}</div>
         </div>
 
         <div class="gpen-pane ${curTab === 'log' ? 'on' : ''}" data-pane="log">
