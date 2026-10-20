@@ -1,0 +1,11 @@
+{
+  "display_name": "✒️ Ghostpen",
+  "loading_order": 10,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "ghostcatowo",
+  "version": "0.3.1",
+  "homePage": "https://github.com/ghostcatowo/Ghostpen"
+}

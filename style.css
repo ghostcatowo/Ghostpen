@@ -1,0 +1,247 @@
+/* ✒️ Ghostpen
+ * 주의: .inline-drawer-content 의 display는 건드리지 않는다. (접기/펼치기는 SillyTavern이 제어)
+ * 클래스 접두어는 gpen- (다른 확장과 충돌 방지)
+ */
+
+/* ===== 입력 박스 안, 입력창 바로 윗줄 (아이콘만, 라운드 사각형) ===== */
+#ghostpen_bar {
+    flex: 0 0 100%;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px 2px;
+}
+
+.gpen-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1.5px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    background: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.gpen-icon i { margin: 0; line-height: 1; }
+.gpen-icon:hover { border-color: var(--SmartThemeQuoteColor); }
+.gpen-icon.gpen-active { border-color: var(--SmartThemeQuoteColor); }
+#ghostpen_bar.gpen-busy .gpen-icon:not(.gpen-active) { opacity: 0.4; pointer-events: none; }
+
+/* 원문 복원 아이콘: 대필 직후에만 표시 (아이콘 줄의 맨 왼쪽) */
+.gpen-icon.gpen-restore { display: none; }
+.gpen-icon.gpen-restore.gpen-show { display: inline-flex; }
+
+/* ===== 공통 버튼 (설정 패널 안) ===== */
+.gpen-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 999px;
+    background: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+    font: inherit;
+    font-size: 0.9em;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.gpen-btn i { margin: 0; line-height: 1; }
+.gpen-btn:hover { border-color: var(--SmartThemeQuoteColor); }
+.gpen-btn.gpen-dim { opacity: 0.4; pointer-events: none; }
+
+/* 켜짐/선택 상태 */
+.gpen-chip, .gpen-seg { opacity: 0.55; }
+.gpen-chip.gpen-on, .gpen-seg.gpen-on { opacity: 1; border-color: var(--SmartThemeQuoteColor); }
+.gpen-seg { flex: 1 1 0; min-width: 0; border-radius: 12px; min-height: 40px; }
+.gpen-chip { flex: 1 1 0; min-width: 0; padding: 0 8px; }
+
+/* ===== 설정 / 기록 패널 ===== */
+.gpen-pop {
+    text-align: left;
+    width: 100%;
+    min-width: min(100%, 320px);
+}
+
+.gpen-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.gpen-tab {
+    flex: 1;
+    min-height: 38px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    font: inherit;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.gpen-tab.on { opacity: 1; border-bottom-color: var(--SmartThemeQuoteColor); }
+
+.gpen-pane { display: none; }
+.gpen-pane.on { display: block; }
+
+.gpen-badge {
+    display: inline-block;
+    min-width: 1.4em;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(127, 127, 127, 0.25);
+    font-size: 0.8em;
+    text-align: center;
+}
+
+.gpen-muted { opacity: 0.6; }
+
+.gpen-hint {
+    margin: 4px 0 10px;
+    font-size: 0.85em;
+    line-height: 1.45;
+    word-break: keep-all;
+}
+
+.gpen-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.gpen-section-title {
+    margin: 14px 0 6px;
+    font-weight: 600;
+}
+
+.gpen-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.gpen-field select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    margin: 0;
+}
+
+/* 고급 (접힘) */
+.gpen-adv {
+    margin-bottom: 12px;
+    padding: 6px 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+}
+
+.gpen-adv > summary {
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    opacity: 0.85;
+}
+
+.gpen-adv[open] > summary { margin-bottom: 8px; }
+
+/* 숫자 조절 (키보드 없이 + / - 버튼) */
+.gpen-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.gpen-step-btn { min-width: 44px; }
+
+.gpen-step-val {
+    min-width: 3.5em;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* ===== 기록 ===== */
+.gpen-logbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 0.85em;
+}
+
+.gpen-log {
+    margin-bottom: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-left-width: 4px;
+    border-radius: 8px;
+}
+
+.gpen-log.fail { border-left-color: #e5534b; }
+.gpen-log.warn { border-left-color: #d4a72c; }
+
+.gpen-log summary {
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+.gpen-logbody {
+    margin-top: 6px;
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+}
+
+.gpen-logbody .gpen-copy-one { margin-bottom: 6px; }
+
+.gpen-logbody pre {
+    max-height: 220px;
+    overflow: auto;
+    margin: 0;
+    padding: 6px;
+    white-space: pre-wrap;
+    font-size: 0.85em;
+    background: rgba(127, 127, 127, 0.12);
+    border-radius: 6px;
+}
+
+.gpen-empty {
+    padding: 24px 0;
+    text-align: center;
+}
+
+/* ===== 마법봉 팝업: 내용이 길면 안에서 스크롤, 스크롤 막대는 숨김 ===== */
+.gpen-popwrap {
+    max-height: 75vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 4px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.gpen-popwrap::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.popup:has(.gpen-popwrap),
+.popup:has(.gpen-popwrap) * { scrollbar-width: none; }
+.popup:has(.gpen-popwrap) *::-webkit-scrollbar { width: 0; height: 0; display: none; }
