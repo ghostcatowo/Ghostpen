@@ -1,6 +1,6 @@
-// Ghostpen v0.4.1 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.4.2 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.4.1';
+const VERSION = '0.4.2';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -53,7 +53,7 @@ const SYSTEM_PROMPT = [
     `If rules conflict, follow this order: [Request] (if present) -> Rules 1-3 -> point of view -> intensity.`,
     ``,
     `1. Reflect every action and every line of dialogue in the draft, in the original order, without omitting any. Do not change their content, order, meaning, or cause-and-effect.`,
-    `2. Keep text inside double quotes (" ") exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing.`,
+    `2. Keep text inside double quotes (" ") exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing. If a [Request] is present, the request comes first.`,
     `3. Do not add dialogue, actions, events, or characters that are not in the draft. Do not write any result that follows the draft or the other party's reaction. You may describe in concrete detail how an existing action is carried out. Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden). The only exception is the [Empty draft] section, when it is present.`,
     ``,
     `[Description]`,
@@ -66,7 +66,7 @@ const SYSTEM_PROMPT = [
     `[Output]`,
     `- Output only the finished passage. Do not add reasoning, information blocks, or anything else.`,
     `- Write in the same language as the draft. If the draft is empty, write in Korean.`,
-    `- End any narration you newly write with a complete sentence. Text inside double quotes stays exactly as in the draft, even if it is unfinished.`,
+    `- End any narration you newly write with a complete sentence. Text inside double quotes stays exactly as in the draft, even if it is unfinished. If a [Request] is present, the request comes first.`,
 ].join('\n');
 
 const PERSPECTIVE = {
