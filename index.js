@@ -1,6 +1,6 @@
-// Ghostpen - SillyTavern 대필 확장
+// Ghostpen v0.4.0 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.3.1';
+const VERSION = '0.4.0';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -50,11 +50,11 @@ const SYSTEM_PROMPT = [
     `Ghostwrite the <draft> into a finished passage that can be sent to the RP as is.`,
     ``,
     `[Rules]`,
-    `If rules conflict, follow this order: Rules 1-3 -> point of view -> intensity.`,
+    `If rules conflict, follow this order: [Request] (if present) -> Rules 1-3 -> point of view -> intensity.`,
     ``,
     `1. Reflect every action and every line of dialogue in the draft, in the original order, without omitting any. Do not change their content, order, meaning, or cause-and-effect.`,
     `2. Keep text inside double quotes (" ") exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing.`,
-    `3. Do not add dialogue, actions, events, or characters that are not in the draft. Write only up to the draft's last action or situation; do not write any result that follows it or the other party's reaction. You may describe in concrete detail how an existing action is carried out. Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden). The only exception is the [Empty draft] section, when it is present.`,
+    `3. Do not add dialogue, actions, events, or characters that are not in the draft. Do not write any result that follows the draft or the other party's reaction. You may describe in concrete detail how an existing action is carried out. Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden). The only exception is the [Empty draft] section, when it is present.`,
     ``,
     `[Description]`,
     `- The amount and depth of description follow the selected intensity.`,
@@ -118,7 +118,20 @@ const EMPTY_INSTRUCTION = [
     `- Do not write {{char}}'s actions, dialogue, inner thoughts, or reactions.`,
 ].join('\n');
 
-function buildMessages(input, mode, st) {
+// 줄 맨 앞이 //인 첫 줄부터 끝까지를 요청으로, 그 앞을 초안으로 나눈다
+function splitRequest(text) {
+    const m = /(^|\n)\/\/[^\S\n]?/.exec(text);
+    if (!m) return { draft: text, request: '' };
+    return { draft: text.slice(0, m.index), request: text.slice(m.index + m[0].length).trim() };
+}
+
+const REQUEST_INSTRUCTION = [
+    `[Request]`,
+    `- The user attached the request below. It takes priority over Rules 1-3 and the intensity, but apply it only to what it mentions; follow the rules for everything else.`,
+    `- If the request asks to change dialogue, you may change text inside double quotes as the request says.`,
+].join('\n');
+
+function buildMessages(input, mode, st, request = '') {
     const c = ctx();
     const ch = (c.characterId !== undefined && c.characters) ? c.characters[c.characterId] : null;
     const persona = c.powerUserSettings?.persona_description || '';
@@ -132,6 +145,7 @@ function buildMessages(input, mode, st) {
         PERSPECTIVE[mode],
         INTENSITY[st.intensity] || INTENSITY.mid,
         ...(hasInput ? [] : [EMPTY_INSTRUCTION]),
+        ...(request ? [`${REQUEST_INSTRUCTION}\n<request>\n${request}\n</request>`] : []),
         `[Length]\nRecommended length: ${st.minChars} to ${st.maxChars} characters, including spaces. Rules 1-3 take priority over it, so do not add events that are not in the draft. Reach the length by describing in concrete detail the process, sensation, atmosphere, and emotion of the actions that are already there. Do not repeat the same content.`,
         `<draft>\n${hasInput ? input : ''}\n</draft>`,
     ];
@@ -178,7 +192,7 @@ function addLog(entry) {
 function formatLog(l) {
     const lines = [`[${l.time}] ${l.result}`];
     const map = [['stage', '단계'], ['reason', '원인'], ['detail', '상세'], ['hint', '해석'], ['mode', '시점'], ['intensity', '강도'],
-        ['length', '권장 분량'], ['source', '요청 대상'], ['api', 'API'], ['inputChars', '원문 글자수'],
+        ['length', '권장 분량'], ['source', '요청 대상'], ['api', 'API'], ['inputChars', '원문 글자수'], ['userRequest', '추가 요청'],
         ['outputChars', '결과 글자수'], ['finish', '종료 사유'], ['request', '요청 정보'],
         ['cancel', '취소 지원'], ['network', '서버 응답'], ['cause', '상세 원인(cause)'], ['elapsed', '경과 시간'], ['env', '환경']];
     for (const [k, label] of map) if (l[k] !== undefined && l[k] !== '') lines.push(`  ${label}: ${l[k]}`);
@@ -224,7 +238,8 @@ async function runGhostpen(mode) {
     const c = ctx();
     const st = S();
     const ta = document.getElementById('send_textarea');
-    const input = ta.value;
+    const rawText = ta.value;
+    const { draft: input, request } = splitRequest(rawText);
     const id = ++runCounter;
     const controller = new AbortController();
     run = { id, controller, mode, cancelled: false, timedOut: false };
@@ -234,7 +249,7 @@ async function runGhostpen(mode) {
     const log = {
         mode: MODE[mode].label, intensity: INT_LABEL[st.intensity], length: `${st.minChars}~${st.maxChars}자 / 최대 출력 ${st.maxTokens}토큰`,
         source: conn.kind === 'profile' ? `프로필: ${conn.profile?.name || '찾을 수 없음'}` : '선택 안 함 (지금 사용 중인 연결과 프리셋 그대로)',
-        api: conn.profile?.api || c.mainApi || '', inputChars: input.length,
+        api: conn.profile?.api || c.mainApi || '', inputChars: input.length, userRequest: maskSecrets(request).slice(0, 300),
         env: `확장 v${VERSION} / ${deviceInfo()}`,
     };
     let stage = '준비';
@@ -270,7 +285,7 @@ async function runGhostpen(mode) {
     const timer = setTimeout(() => { if (run) run.timedOut = true; controller.abort(); }, Math.max(10, st.timeoutSec) * 1000);
     try {
         if (conn.missing) throw new Error('선택한 연결 프로필을 찾을 수 없어요. 프로필이 삭제됐을 수 있어요. 설정에서 다시 고르거나 "선택 안 함"으로 바꿔 주세요.');
-        const messages = buildMessages(input, mode, st);
+        const messages = buildMessages(input, mode, st, request);
         const maxTokens = Math.max(256, Number(st.maxTokens) || DEFAULTS.maxTokens);
         log.request = `메시지 ${messages.length}개 / 시스템 ${messages[0].content.length}자 / 사용자 ${messages[1].content.length}자 / 최대 출력 ${maxTokens}`;
 
@@ -310,11 +325,11 @@ async function runGhostpen(mode) {
         const warns = [];
         if (/length|max_tokens/i.test(finish)) warns.push('결과가 출력 길이 상한에서 잘렸을 수 있어요.');
         if (out.length < st.minChars - 200) warns.push('권장 분량보다 많이 짧아요.');
-        const quoted = extractQuoted(input);
+        const quoted = request ? [] : extractQuoted(input); // 요청이 있으면 대사 변경이 의도일 수 있어 검사하지 않음
         const changed = quoted.filter(q => !out.includes(q)).length;
         if (changed) warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changed}개가 원문과 달라요.`);
 
-        lastOriginal = input;
+        lastOriginal = rawText; // 요청 줄까지 포함해서 보관
         ta.value = out;
         ta.dispatchEvent(new Event('input', { bubbles: true }));
         ta.focus();
