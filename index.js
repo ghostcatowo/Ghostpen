@@ -1,6 +1,6 @@
-// Ghostpen v0.4.2 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.4.3 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.4.2';
+const VERSION = '0.4.3';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -50,11 +50,11 @@ const SYSTEM_PROMPT = [
     `Ghostwrite the <draft> into a finished passage that can be sent to the RP as is.`,
     ``,
     `[Rules]`,
-    `If rules conflict, follow this order: [Request] (if present) -> Rules 1-3 -> point of view -> intensity.`,
+    `If rules conflict, follow this order: [Request] (if present) -> Rules 1-3 -> point of view -> intensity -> length. If a [Request] is present, it comes before every rule and section in this prompt, including description, point of view, intensity, and length.`,
     ``,
     `1. Reflect every action and every line of dialogue in the draft, in the original order, without omitting any. Do not change their content, order, meaning, or cause-and-effect.`,
     `2. Keep text inside double quotes (" ") exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing. If a [Request] is present, the request comes first.`,
-    `3. Do not add dialogue, actions, events, or characters that are not in the draft. Do not write any result that follows the draft or the other party's reaction. You may describe in concrete detail how an existing action is carried out. Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden). The only exception is the [Empty draft] section, when it is present.`,
+    `3. Do not add dialogue, actions, events, or characters that are not in the draft. Do not write any result that follows the draft or the other party's reaction. You may describe in concrete detail how an existing action is carried out. Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden). The exceptions are the [Empty draft] section and the [Request], when present.`,
     ``,
     `[Description]`,
     `- The amount and depth of description follow the selected intensity.`,
@@ -127,8 +127,7 @@ function splitRequest(text) {
 
 const REQUEST_INSTRUCTION = [
     `[Request]`,
-    `- The user attached the request below. It takes priority over Rules 1-3 and the intensity, but apply it only to what it mentions; follow the rules for everything else.`,
-    `- If the request asks to change dialogue, you may change text inside double quotes as the request says.`,
+    `The user attached a request to this ghostwriting. It takes priority over all the rules and instructions above. Follow it all the way where it conflicts with them; do not apply it only partly or skip it because of a rule. Follow the usual rules only for what the request does not mention. Before you output, check that the request is reflected.`,
 ].join('\n');
 
 function buildMessages(input, mode, st, request = '') {
@@ -145,9 +144,9 @@ function buildMessages(input, mode, st, request = '') {
         PERSPECTIVE[mode],
         INTENSITY[st.intensity] || INTENSITY.mid,
         ...(hasInput ? [] : [EMPTY_INSTRUCTION]),
-        ...(request ? [`${REQUEST_INSTRUCTION}\n<request>\n${request}\n</request>`] : []),
-        `[Length]\nRecommended length: ${st.minChars} to ${st.maxChars} characters, including spaces. Rules 1-3 take priority over it, so do not add events that are not in the draft. Reach the length by describing in concrete detail the process, sensation, atmosphere, and emotion of the actions that are already there. Do not repeat the same content.`,
+        `[Length]\nRecommended length: ${st.minChars} to ${st.maxChars} characters, including spaces. Unless the [Request] says otherwise, do not add events that are not in the draft. Reach the length by describing in concrete detail the process, sensation, atmosphere, and emotion of the actions that are already there. Do not repeat the same content.`,
         `<draft>\n${hasInput ? input : ''}\n</draft>`,
+        ...(request ? [`${REQUEST_INSTRUCTION}\n<request>\n${request}\n</request>`] : []),
     ];
     const sub = t => c.substituteParams ? c.substituteParams(t) : t;
     return [
