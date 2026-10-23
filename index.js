@@ -1,6 +1,6 @@
-// Ghostpen v0.4.4 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.4.8 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.4.4';
+const VERSION = '0.4.8';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -78,7 +78,6 @@ const PERSPECTIVE = {
     third: [
         `[Point of view: third person]`,
         `- Narrate in third person, and do not lock the point of view to any one character.`,
-        `- If there are no point-of-view cues, narrate mainly through outwardly visible actions, gestures, sounds, and the space.`,
         `- If the draft is not in third person, rewrite all narration outside double quotes in third person.`,
     ].join('\n'),
     keep: [
@@ -134,7 +133,8 @@ function buildMessages(input, mode, st, request = '') {
     const c = ctx();
     const ch = (c.characterId !== undefined && c.characters) ? c.characters[c.characterId] : null;
     const persona = c.powerUserSettings?.persona_description || '';
-    const recent = (c.chat || []).filter(m => !m.is_system && m.mes).slice(-Math.max(0, Number(st.recent) || 0))
+    const recentN = Math.max(0, Number(st.recent) || 0); // 0이면 채팅을 보내지 않음 (slice(-0)은 전체를 가져오므로 따로 처리)
+    const recent = (c.chat || []).filter(m => !m.is_system && m.mes).slice(recentN ? -recentN : Infinity)
         .map(m => `${m.name}: ${m.mes}`).join('\n\n');
     const hasInput = !!input.trim();
     const parts = [
@@ -170,11 +170,17 @@ function extractQuoted(text) {
 
 function explainError(net, detail) {
     const t = `${net} ${detail}`;
-    if (/429|RESOURCE_EXHAUSTED|rate limit|quota/i.test(t)) return '서버(제공사)의 사용량 한도 초과예요. 확장 문제가 아니에요. 잠시 후 다시 시도하거나 할당량/모델/지역 설정을 확인하세요.';
-    if (/401|403|UNAUTHENTICATED|PERMISSION_DENIED|api key|credential/i.test(t)) return '인증 또는 권한 문제예요. API 키, 프로젝트, 권한 설정을 확인하세요.';
-    if (/404|NOT_FOUND/i.test(t)) return '모델 또는 지역(엔드포인트)을 찾을 수 없어요. 모델 이름과 지역 설정을 확인하세요.';
-    if (/400|INVALID_ARGUMENT/i.test(t)) return '요청 형식이 거절됐어요. 모델이 지원하지 않는 설정이 있을 수 있어요.';
-    if (/50[0-9]|UNAVAILABLE|INTERNAL/i.test(t)) return '서버 쪽 오류예요. 잠시 후 다시 시도하세요.';
+    // 숫자는 상태 코드로 나온 것만 본다 (본문 속 우연한 숫자에 속지 않도록)
+    const codes = [...net.matchAll(/"code"\s*:\s*(\d{3})/g)].map(m => m[1]);
+    const http = net.match(/HTTP (\d{3})/)?.[1];
+    if (http) codes.push(http);
+    for (const m of detail.matchAll(/\b([1-5]\d\d)\b/g)) codes.push(m[1]);
+    const has = re => codes.some(c => re.test(c));
+    if (has(/^429$/) || /RESOURCE_EXHAUSTED|rate limit|quota/i.test(t)) return '서버(제공사)의 사용량 한도 초과예요. 확장 문제가 아니에요. 잠시 후 다시 시도하거나 할당량/모델/지역 설정을 확인하세요.';
+    if (has(/^40[13]$/) || /UNAUTHENTICATED|PERMISSION_DENIED|api key|credential/i.test(t)) return '인증 또는 권한 문제예요. API 키, 프로젝트, 권한 설정을 확인하세요.';
+    if (has(/^404$/) || /NOT_FOUND/i.test(t)) return '모델 또는 지역(엔드포인트)을 찾을 수 없어요. 모델 이름과 지역 설정을 확인하세요.';
+    if (has(/^400$/) || /INVALID_ARGUMENT/i.test(t)) return '요청 형식이 거절됐어요. 모델이 지원하지 않는 설정이 있을 수 있어요.';
+    if (has(/^5\d\d$/) || /UNAVAILABLE|INTERNAL/i.test(t)) return '서버 쪽 오류예요. 잠시 후 다시 시도하세요.';
     return '';
 }
 
@@ -191,7 +197,7 @@ function addLog(entry) {
 function formatLog(l) {
     const lines = [`[${l.time}] ${l.result}`];
     const map = [['stage', '단계'], ['reason', '원인'], ['detail', '상세'], ['hint', '해석'], ['mode', '시점'], ['intensity', '강도'],
-        ['length', '권장 분량'], ['source', '요청 대상'], ['api', 'API'], ['inputChars', '원문 글자수'], ['userRequest', '추가 요청'],
+        ['length', '권장 분량'], ['source', '요청 대상'], ['api', 'API'], ['inputChars', '원문 글자수'],
         ['outputChars', '결과 글자수'], ['finish', '종료 사유'], ['request', '요청 정보'],
         ['cancel', '취소 지원'], ['network', '서버 응답'], ['cause', '상세 원인(cause)'], ['elapsed', '경과 시간'], ['env', '환경']];
     for (const [k, label] of map) if (l[k] !== undefined && l[k] !== '') lines.push(`  ${label}: ${l[k]}`);
@@ -248,7 +254,7 @@ async function runGhostpen(mode) {
     const log = {
         mode: MODE[mode].label, intensity: INT_LABEL[st.intensity], length: `${st.minChars}~${st.maxChars}자 / 최대 출력 ${st.maxTokens}토큰`,
         source: conn.kind === 'profile' ? `프로필: ${conn.profile?.name || '찾을 수 없음'}` : '선택 안 함 (지금 사용 중인 연결과 프리셋 그대로)',
-        api: conn.profile?.api || c.mainApi || '', inputChars: input.length, userRequest: maskSecrets(request).slice(0, 300),
+        api: conn.profile?.api || c.mainApi || '', inputChars: input.length,
         env: `확장 v${VERSION} / ${deviceInfo()}`,
     };
     let stage = '준비';
@@ -338,7 +344,7 @@ async function runGhostpen(mode) {
     } catch (e) {
         if (!run || run.id !== id || run.cancelled) return; // 취소는 실패 아님
         const timedOut = run.timedOut;
-        toastr.error('대필 실패 😢')?.css({ 'border-radius': '14px', 'background-color': '#e5586b', 'background-image': 'none', color: '#fff' });
+        toastr.error('대필 실패 😢')?.css({ 'border-radius': '14px', 'background-color': '#8c3b4a', 'background-image': 'none', color: '#fff' });
         const detail = timedOut ? `${st.timeoutSec}초 안에 응답이 오지 않았어요.` : String(e?.message || e).slice(0, 600);
         addLog({
             level: 'fail', result: '❌ 실패', stage,
