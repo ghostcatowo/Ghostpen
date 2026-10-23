@@ -1,6 +1,6 @@
-// Ghostpen v0.4.3 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.4.4 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.4.3';
+const VERSION = '0.4.4';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -72,7 +72,7 @@ const SYSTEM_PROMPT = [
 const PERSPECTIVE = {
     first: [
         `[Point of view: first person]`,
-        `- Rewrite all narration outside double quotes from {{user}}'s first-person point of view. Change sentences only as far as the conversion requires.`,
+        `- Rewrite all narration outside double quotes from {{user}}'s first-person point of view.`,
         `- Do not narrate other characters' inner thoughts or sensations.`,
     ].join('\n'),
     third: [
