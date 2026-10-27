@@ -1,6 +1,6 @@
-// Ghostpen v0.4.10 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.4.11 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.4.10';
+const VERSION = '0.4.11';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -54,13 +54,13 @@ const SYSTEM_PROMPT = [
     ``,
     `1. Reflect every action in the draft, and every line of dialogue inside double quotes (" "), in the original order, without omitting any. Do not change their content, order, meaning, or cause-and-effect.`,
     `2. Keep text inside double quotes (" ") exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing. Text without double quotes is narration, not dialogue; do not add double quotes to it. If a [Request] is present, the request comes first.`,
-    `3. If there is no [Request] and no [Empty draft], do not add dialogue, actions, events, or characters that are not in the draft. After the end of the draft, do not narrate any new result or the other party's reaction. You may describe in concrete detail how an existing action is carried out. Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden).`,
+    `3. If there is no [Request] and no [Empty draft], do not add dialogue, actions, events, or characters that are not in the draft. Do not narrate any new result that is not in the draft, or any reaction of {{char}} or NPCs (including emotions and sensations). You may describe in concrete detail how an existing action is carried out. Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden).`,
     ``,
     `[Description]`,
     `- The amount and depth of description follow the selected intensity.`,
-    `- For every character, describe emotions, inner thoughts, and sensations only when the draft, the recent chat, the character description, or the persona supports them and the selected point of view allows them to be narrated.`,
-    `- Make the draft concrete in line with the existing context, and freely add the detailed process of actions, sensations, setting, and other detailed description. Elements that already appear in the draft or the recent chat, or that exist given the context, may be freely described and expanded to suit the scene. Do not invent objects, facts, or events that the context does not contain. (The [Empty draft] is an exception.)`,
-    `- Do not repeat the same information or feeling, and do not retell what has already happened in the recent chat. Fix grammar errors, awkward connections, and repeated words.`,
+    `- Describe {{user}}'s emotions, inner thoughts, and sensations only when the draft, the recent chat, the character description, or the persona supports them and the selected point of view allows them to be narrated. For {{char}} and NPCs, only make concrete the emotions, inner thoughts, and sensations that are in the draft.`,
+    `- Make the draft concrete in line with the existing context, and add the detailed process of existing actions, sensations, setting, and other detailed description. Elements that appear in the draft or the recent chat may be expanded to suit the scene, but do not invent objects, facts, or events that the context does not contain. (The [Empty draft] is an exception.)`,
+    `- Do not repeat the same information or feeling, and do not retell what has already happened in the recent chat. Fix grammar errors, awkward sentences or connections, and repeated words.`,
     `- Use the character description, the persona, and the recent chat only to understand the context. Do not copy or summarize them.`,
     ``,
     `[Output]`,
@@ -101,14 +101,14 @@ const INTENSITY = {
         `- Recompose sentences and paragraphs naturally.`,
         `- Expand the process, sensation, and setting of actions in concrete terms.`,
         `- Supplement the core emotion and psychology within what the context supports.`,
-        `- If there is a draft, do not end where the draft ends; supplement the emotion, sensation, surrounding atmosphere, and so on contained in the last action or line appropriately, so that the scene closes naturally.`,
+        `- If there is a draft, supplement the emotion, sensation, surrounding atmosphere, and so on contained in the last action, line, or narration in concrete terms, so that the scene closes naturally.`,
     ].join('\n'),
     strong: [
         `[Intensity: Strong]`,
         `- Actively recompose sentences and paragraphs.`,
-        `- Expand and describe the process, sensation, and setting of actions deeply and richly.`,
-        `- Describe the flow of emotion and psychology in depth.`,
-        `- If there is a draft, do not end where the draft ends; supplement the emotion, sensation, surrounding atmosphere, and so on contained in the last action or line richly and in depth, so that the scene closes naturally.`,
+        `- Expand the process, sensation, and setting of actions richly.`,
+        `- Describe the flow of emotion and psychology in depth, within what the context supports.`,
+        `- If there is a draft, supplement the emotion, sensation, surrounding atmosphere, and so on contained in the last action, line, or narration richly, so that the scene closes naturally.`,
     ].join('\n'),
 };
 
