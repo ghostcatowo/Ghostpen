@@ -1,6 +1,6 @@
-// Ghostpen v0.4.11 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.4.12 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.4.11';
+const VERSION = '0.4.12';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -50,16 +50,17 @@ const SYSTEM_PROMPT = [
     `Ghostwrite the <draft> into a finished passage that can be sent to the RP as is.`,
     ``,
     `[Rules]`,
-    `If rules conflict, follow this order: [Request] (if present) -> Rules 1-3 -> point of view -> intensity -> length. If a [Request] is present, it comes before every rule and section in this prompt.`,
+    `If rules conflict, follow this order: [Request] (if present) -> Rules 1-4 -> point of view -> intensity -> length. If a [Request] is present, it comes before every rule and section in this prompt.`,
     ``,
     `1. Reflect every action in the draft, and every line of dialogue inside double quotes (" "), in the original order, without omitting any. Do not change their content, order, meaning, or cause-and-effect.`,
     `2. Keep text inside double quotes (" ") exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing. Text without double quotes is narration, not dialogue; do not add double quotes to it. If a [Request] is present, the request comes first.`,
-    `3. If there is no [Request] and no [Empty draft], do not add dialogue, actions, events, or characters that are not in the draft. Do not narrate any new result that is not in the draft, or any reaction of {{char}} or NPCs (including emotions and sensations). You may describe in concrete detail how an existing action is carried out. Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden).`,
+    `3. Do not add dialogue, actions, events, characters, or new results that are not in the draft. You may describe in concrete detail how an existing action is carried out. (A [Request] and the [Empty draft] are exceptions.) Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden).`,
+    `4. Do not write dialogue, actions, or reactions (including states, emotions, and sensations) of {{char}} or NPCs that are not in the draft.`,
     ``,
     `[Description]`,
     `- The amount and depth of description follow the selected intensity.`,
-    `- Describe {{user}}'s emotions, inner thoughts, and sensations only when the draft, the recent chat, the character description, or the persona supports them and the selected point of view allows them to be narrated. For {{char}} and NPCs, only make concrete the emotions, inner thoughts, and sensations that are in the draft.`,
-    `- Make the draft concrete in line with the existing context, and add the detailed process of existing actions, sensations, setting, and other detailed description. Elements that appear in the draft or the recent chat may be expanded to suit the scene, but do not invent objects, facts, or events that the context does not contain. (The [Empty draft] is an exception.)`,
+    `- Describe {{user}}'s emotions, inner thoughts, and sensations only when the draft, the recent chat, the character description, or the persona supports them and the selected point of view allows them to be narrated.`,
+    `- Make the draft concrete in line with the existing context, and add the detailed process of existing actions, sensations, setting, and other detailed description. Do not invent objects, facts, or events that the context does not contain. (The [Empty draft] is an exception.)`,
     `- Do not repeat the same information or feeling, and do not retell what has already happened in the recent chat. Fix grammar errors, awkward sentences or connections, and repeated words.`,
     `- Use the character description, the persona, and the recent chat only to understand the context. Do not copy or summarize them.`,
     ``,
@@ -147,7 +148,7 @@ function buildMessages(input, mode, st, request = '') {
         PERSPECTIVE[mode],
         INTENSITY[st.intensity] || INTENSITY.mid,
         ...(hasInput ? [] : [EMPTY_INSTRUCTION]),
-        `[Length]\n${st.minChars} to ${st.maxChars} characters, including spaces.\nReach the length by describing in concrete detail the process, sensation, atmosphere, and emotion of the actions that are already there.`,
+        `[Length]\n${st.minChars} to ${st.maxChars} characters, including spaces.\nReach the length by describing in concrete detail the process, sensation, setting, objects, atmosphere, and emotion of the actions and dialogue in the draft.`,
         `<draft>\n${hasInput ? input : ''}\n</draft>`,
         ...(request ? [`${REQUEST_INSTRUCTION}\n<request>\n${request}\n</request>`] : []),
     ];
