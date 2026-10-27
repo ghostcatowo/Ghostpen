@@ -63,6 +63,7 @@ const SYSTEM_PROMPT = [
     `- Make the draft concrete in line with the existing context, and add the detailed process of existing actions, sensations, setting, and other detailed description. Do not invent objects, facts, or events that the context does not contain. (The [Empty draft] is an exception.)`,
     `- Do not repeat the same information or feeling, and do not retell what has already happened in the recent chat. Fix grammar errors, awkward sentences or connections, and repeated words.`,
     `- Use the character description, the persona, and the recent chat only to understand the context. Do not copy or summarize them.`,
+    `- So that the whole passage flows naturally, supplement narration between lines of dialogue, connecting the lines before and after to the existing actions, sensations, and atmosphere.`,
     ``,
     `[Output]`,
     `- Output only the finished passage. Do not add reasoning, information blocks, or anything else.`,
