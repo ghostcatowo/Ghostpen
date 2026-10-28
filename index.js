@@ -1,6 +1,6 @@
-// Ghostpen v0.4.13 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.4.14 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.4.13';
+const VERSION = '0.4.14';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -50,25 +50,36 @@ const SYSTEM_PROMPT = [
     `Ghostwrite the <draft> into a finished passage that can be sent to the RP as is.`,
     ``,
     `[Rules]`,
-    `If rules conflict, follow this order: [Request] (if present) -> Rules 1-4 -> point of view -> intensity -> length. If a [Request] is present, it comes before every rule and section in this prompt.`,
+    `If rules conflict, follow this order: [Request] (if present) -> Rules -> Description -> Point of view -> Intensity -> Length.`,
+    `If a [Request] is present, it comes before every rule and section in this prompt.`,
     ``,
     `1. Reflect every action in the draft, and every line of dialogue inside double quotes (" "), in the original order, without omitting any. Do not change their content, order, meaning, or cause-and-effect.`,
-    `2. Keep text inside double quotes (" ") exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing. Text without double quotes is narration, not dialogue; do not add double quotes to it. If a [Request] is present, the request comes first.`,
-    `3. Do not add dialogue, actions, events, characters, or new results that are not in the draft. However, you may describe in concrete detail how an existing action is carried out, and you may write narration that connects lines of dialogue using sensations, atmosphere, and detail drawn from the context of the existing dialogue and actions. (A [Request] and the [Empty draft] are exceptions.) Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden).`,
-    `4. Do not write dialogue, actions, or reactions (including states, emotions, and sensations) of {{char}} or NPCs that are not in the draft. (A [Request] is an exception.)`,
+    ``,
+    `2. Keep every line of dialogue inside double quotes (" ") exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing. If a [Request] is present, the request comes first.`,
+    ``,
+    `3. Do not add new dialogue, events, characters, or results that are not in the draft. If {{char}} and NPCs do not appear in the draft, do not write their actions, reactions, emotions, or sensations. (A [Request] is an exception; the [Empty draft] follows its own section.)`,
+    ``,
+    `4. The following may be supplemented.`,
+    `- How an existing action is carried out, sensations that fit the context, atmosphere, and detailed description`,
+    `- {{user}}'s actions, reactions, emotions, and sensations`,
+    `- Reactions and sensations attached to the existing dialogue or actions of {{char}} or NPCs who appear in the draft`,
+    `- Narration that connects one line of dialogue to the next`,
+    `- Closing narration at the end of the scene, so that dialogue, action, or narration does not break off awkwardly. Write it only within the scene that the draft's last dialogue, action, or narration belongs to, and do not write any new action or event that would follow it.`,
+    `Example: "He opened the door" -> he turned the handle and pushed the door open (allowed) / "He went out into the hallway" (forbidden).`,
     ``,
     `[Description]`,
     `- The amount and depth of description follow the selected intensity.`,
-    `- Describe {{user}}'s emotions, inner thoughts, and sensations only when the draft, the recent chat, the character description, or the persona supports them and the selected point of view allows them to be narrated.`,
-    `- Make the draft concrete in line with the existing context, and add the detailed process of existing actions, sensations, setting, and other detailed description. Do not invent objects, facts, or events that the context does not contain. (The [Empty draft] is an exception.)`,
-    `- Do not repeat the same information or feeling, and do not retell what has already happened in the recent chat. Fix grammar errors, awkward sentences or connections, and repeated words.`,
-    `- Use the character description, the persona, and the recent chat only to understand the context. Do not copy or summarize them.`,
-    `- Between one line of dialogue and the next, you must write at least one sentence of narration that connects the lines before and after to the existing actions, sensations, and atmosphere.`,
+    `- Describe {{user}}'s emotions, inner thoughts, and sensations only when the draft and the context support them and the selected point of view allows them.`,
+    `- Make the draft concrete in line with the existing context, adding the detailed process of actions, sensations, and setting. For a place that has already appeared, you may add light, sound, temperature, and atmosphere that suit the scene, but do not invent appearance, belongings, backstory, or new objects or places that the context does not contain.`,
+    `- Do not repeat the same information or feeling. Fix grammar errors, awkward connections, and repeated words.`,
+    `- Use the character description, the persona, and the recent chat only to understand the context. Do not copy or summarize them, and do not retell what has already happened.`,
+    `- Between one line of dialogue and the next, you must write at least one sentence of narration. Fill it with an action, gaze, sensation, or surrounding atmosphere that follows from the previous line, so that the lines before and after connect naturally. The amount of narration follows the intensity.`,
+    `- If there is a draft, supplement the emotion, sensation, and surrounding atmosphere contained in the draft's last dialogue, action, or narration, so that the scene closes naturally instead of breaking off awkwardly. The amount and depth follow the intensity.`,
     ``,
     `[Output]`,
     `- Output only the finished passage. Do not add reasoning, information blocks, or anything else.`,
     `- Write in the same language as the draft. If the draft is empty, write in Korean.`,
-    `- End any narration you newly write with a complete sentence. Text inside double quotes stays exactly as in the draft, even if it is unfinished. If a [Request] is present, the request comes first.`,
+    `- End any narration you newly write with a complete sentence. Text inside double quotes stays exactly as in the draft, even if the sentence is unfinished. If a [Request] is present, the request comes first.`,
     `- Even when you restructure sentences and paragraphs, do not join dialogue and narration into one line without a line break.`,
 ].join('\n');
 
@@ -80,8 +91,9 @@ const PERSPECTIVE = {
     ].join('\n'),
     third: [
         `[Point of view: third person]`,
-        `- Rewrite all narration outside double quotes in third person.`,
+        `- Write all narration outside double quotes in third person.`,
         `- Do not lock the point of view to any one character.`,
+        `- If there is no clue for judging the point of view, narrate centered on externally observable actions, gestures, sounds, and space.`,
     ].join('\n'),
     keep: [
         `[Point of view: no fixed person]`,
@@ -94,24 +106,22 @@ const PERSPECTIVE = {
 const INTENSITY = {
     weak: [
         `[Intensity: Light]`,
-        `- Keep the draft's wording and structure as much as possible.`,
+        `- Keep the draft's wording.`,
         `- Supplement the process, sensation, and setting of actions only a little.`,
         `- Describe emotions only to the extent the draft shows them.`,
-        `- End where the draft ends.`,
+        `- Close the passage in one or two sentences.`,
     ].join('\n'),
     mid: [
         `[Intensity: Medium]`,
         `- Restructure sentences and paragraphs naturally.`,
         `- Expand the process, sensation, and setting of actions in concrete terms.`,
         `- Supplement the core emotion and psychology within what the context supports.`,
-        `- If there is a draft, supplement the emotion, sensation, surrounding atmosphere, and so on contained in the last action, line, or narration in concrete terms, so that the scene closes naturally.`,
     ].join('\n'),
     strong: [
         `[Intensity: Strong]`,
         `- Actively restructure sentences and paragraphs.`,
         `- Expand the process, sensation, and setting of actions richly.`,
         `- Describe the flow of emotion and psychology in depth, within what the context supports.`,
-        `- If there is a draft, supplement the emotion, sensation, surrounding atmosphere, and so on contained in the last action, line, or narration richly, so that the scene closes naturally.`,
     ].join('\n'),
 };
 
@@ -132,7 +142,7 @@ function splitRequest(text) {
 
 const REQUEST_INSTRUCTION = [
     `[Request]`,
-    `The user attached a request to this ghostwriting. It takes priority over all the rules and instructions above. Follow it all the way where it conflicts with them; do not apply it only partly or skip it because of a rule. Follow the usual rules only for what the request does not mention. Before you output, check that the request is reflected.`,
+    `The user attached a request to this ghostwriting. This request takes priority over all the rules and instructions above. Where it conflicts with a rule, follow the request all the way; do not reflect only part of it or skip it because of a rule. Follow the usual rules only for what the request does not mention. Before you output, check that the request is reflected.`,
 ].join('\n');
 
 function buildMessages(input, mode, st, request = '') {
@@ -150,7 +160,7 @@ function buildMessages(input, mode, st, request = '') {
         PERSPECTIVE[mode],
         INTENSITY[st.intensity] || INTENSITY.mid,
         ...(hasInput ? [] : [EMPTY_INSTRUCTION]),
-        `[Length]\n${st.minChars} to ${st.maxChars} characters, including spaces.\nReach the length by describing in concrete detail the process, sensation, setting, objects, atmosphere, and emotion of the actions and dialogue in the draft.`,
+        `[Length]\n- ${st.minChars} to ${st.maxChars} characters, including spaces.\n- The rules take priority over length, so do not add events or dialogue that are not in the draft. Reach the length by describing in concrete detail the process, sensation, setting, atmosphere, and emotion of the actions that are already there. Do not repeat the same content.`,
         `<draft>\n${hasInput ? input : ''}\n</draft>`,
         ...(request ? [`${REQUEST_INSTRUCTION}\n<request>\n${request}\n</request>`] : []),
     ];
