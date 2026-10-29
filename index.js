@@ -83,7 +83,7 @@ const SYSTEM_PROMPT = [
     `- Output only the finished passage. Do not add reasoning, information blocks, or the like.`,
     `- Write in the same language as the draft. If the draft is empty, write in Korean.`,
     `- End any narration you newly write with a complete sentence. Dialogue inside double quotes stays exactly as in the draft, even if the sentence is unfinished.`,
-    `- Even when you restructure sentences and paragraphs, do not join dialogue and narration into one line without a line break.`,
+    `- Even when you restructure sentences and paragraphs, separate dialogue and narration with line breaks so they do not run together on one line. Split paragraphs following the flow of the content so that narration does not become excessively long.`,
     `- Before you output, check that the dialogue inside double quotes matches the draft and that there are no actions, reactions, emotions, or sensations of {{char}} or NPCs that are not in the draft. If anything is off, fix it.`,
 ].join('\n');
 
