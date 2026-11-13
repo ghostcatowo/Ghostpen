@@ -1,6 +1,6 @@
-// Ghostpen v0.4.14 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.5.0 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.4.14';
+const VERSION = '0.5.0';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -18,6 +18,7 @@ const DEFAULTS = {
     profileId: '',        // '' = 선택 안 함
     timeoutSec: 120,
     logs: [],
+    icons: {},            // 아이콘 꾸미기 (바꾼 것만 저장)
 };
 const MAX_LOGS = 20;
 let curTab = 'set';
@@ -397,7 +398,7 @@ function setBusy(mode, busy) {
         const m = $(this).data('mode');
         const active = busy && m === mode;
         $(this).toggleClass('gpen-active', active);
-        $(this).find('i').attr('class', `fa-solid ${active ? 'fa-spinner fa-spin' : MODE[m].icon}`);
+        $(this).html(active ? '<i class="fa-solid fa-spinner fa-spin"></i>' : iconInner(m));
     });
 }
 
@@ -417,6 +418,82 @@ function restoreOriginal() {
 }
 function clearOriginal() { lastOriginal = null; updateRestoreUI(); }
 
+
+/* 아이콘 꾸미기 */
+const ICON_KEYS = ['first', 'third', 'keep', 'restore'];
+const ICON_DEF = { kind: 'default', emoji: '', img: '', size: 32, color: '', bcolor: '', shape: 'default' };
+const SHAPES = { default: '기본', round: '동그라미', square: '네모', none: '없음' };
+const iconMeta = k => k === 'restore' ? { label: '복원', icon: 'fa-rotate-left' } : MODE[k];
+const ic = k => ({ ...ICON_DEF, ...(S().icons?.[k] || {}) });
+function setIc(k, patch) { const s = S(); if (!s.icons) s.icons = {}; s.icons[k] = { ...ic(k), ...patch }; save(); }
+const safeColor = c => /^#[0-9a-f]{6}$/i.test(c || '') ? c : '';
+const safeSrc = u => /^(https?:\/\/|data:image\/|\/)/i.test(u || '') ? u : '';
+function iconInner(k) {
+    const c = ic(k);
+    if (c.kind === 'emoji' && c.emoji) return `<span class="gpen-emo" style="font-size:${Math.round(c.size * 0.55)}px">${esc(c.emoji)}</span>`;
+    if (c.kind === 'image' && safeSrc(c.img)) return `<img src="${esc(c.img)}" alt="">`;
+    return `<i class="fa-solid ${iconMeta(k).icon}"></i>`;
+}
+function iconStyle(k) {
+    const c = ic(k);
+    const sz = Math.min(64, Math.max(20, Number(c.size) || 32));
+    let css = `width:${sz}px;height:${sz}px;font-size:${Math.round(sz * 0.5)}px;`;
+    if (c.kind === 'default' && safeColor(c.color)) css += `color:${c.color};`;
+    if (c.shape === 'none') css += 'border:none;background:transparent;';
+    else {
+        if (safeColor(c.bcolor)) css += `border-color:${c.bcolor};`;
+        if (c.shape === 'round') css += 'border-radius:50%;';
+        else if (c.shape === 'square') css += 'border-radius:0;';
+    }
+    return css;
+}
+function fileToIcon(file) { // 올린 이미지를 작게 줄여 저장
+    return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onerror = reject;
+        fr.onload = () => {
+            const img = new Image();
+            img.onerror = reject;
+            img.onload = () => {
+                const iw = img.naturalWidth || 96, ih = img.naturalHeight || 96;
+                const r = Math.min(1, 96 / Math.max(iw, ih));
+                const cv = document.createElement('canvas');
+                cv.width = Math.max(1, Math.round(iw * r)); cv.height = Math.max(1, Math.round(ih * r));
+                cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+                resolve(cv.toDataURL('image/png'));
+            };
+            img.src = fr.result;
+        };
+        fr.readAsDataURL(file);
+    });
+}
+let decoSel = 'first';
+let decoOpen = false;
+function decoHtml() {
+    const c = ic(decoSel);
+    const seg = (attr, v, label, cur) => `<button type="button" class="gpen-btn gpen-seg ${cur === v ? 'gpen-on' : ''}" data-${attr}="${v}"><span>${label}</span></button>`;
+    const sels = ICON_KEYS.map(k => seg('dsel', k, iconMeta(k).label, decoSel)).join('');
+    const colorRow = (key, label, val) => `<div class="gpen-field"><label>${label}</label><div class="gpen-colorrow"><input type="color" data-dcolor="${key}" value="${safeColor(val) || '#ffffff'}"><button type="button" class="gpen-btn" data-dcolor-reset="${key}"><span>${safeColor(val) ? '기본색으로' : '기본색 사용 중'}</span></button></div></div>`;
+    let kindBody = '';
+    if (c.kind === 'emoji') {
+        kindBody = `<div class="gpen-field"><input type="text" class="text_pole" data-dtext maxlength="8" placeholder="이모지 입력 (예: ✨)" value="${esc(c.emoji)}"></div>`;
+    } else if (c.kind === 'image') {
+        const isData = String(c.img).startsWith('data:');
+        kindBody = `<div class="gpen-field"><input type="text" class="text_pole" data-dimg placeholder="${isData ? '올린 이미지를 쓰는 중이에요' : '이미지 주소 (https://...)'}" value="${isData ? '' : esc(c.img)}">
+            <div class="gpen-row"><button type="button" class="gpen-btn" data-dupload><i class="fa-solid fa-upload"></i><span>기기에서 올리기</span></button></div>
+            <input type="file" accept="image/*" data-dfile style="display:none"></div>`;
+    }
+    return `
+      <div class="gpen-row">${sels}</div>
+      <div class="gpen-deco-preview"><div class="gpen-icon" style="${iconStyle(decoSel)}cursor:default">${iconInner(decoSel)}</div></div>
+      <div class="gpen-field"><label>모양</label><div class="gpen-row">${seg('dkind', 'default', '기본', c.kind)}${seg('dkind', 'emoji', '이모지', c.kind)}${seg('dkind', 'image', '이미지', c.kind)}</div>${kindBody}</div>
+      <div class="gpen-field"><label>크기 (px)</label><div class="gpen-dstep"><button type="button" class="gpen-btn gpen-dstep-btn" data-dd="-1"><i class="fa-solid fa-minus"></i></button><span class="gpen-step-val">${c.size}</span><button type="button" class="gpen-btn gpen-dstep-btn" data-dd="1"><i class="fa-solid fa-plus"></i></button></div></div>
+      ${c.kind === 'default' ? colorRow('color', '아이콘 색', c.color) : ''}
+      <div class="gpen-field"><label>테두리 모양</label><div class="gpen-row">${Object.entries(SHAPES).map(([v, l]) => seg('dshape', v, l, c.shape)).join('')}</div></div>
+      ${c.shape !== 'none' ? colorRow('bcolor', '테두리 색', c.bcolor) : ''}
+      <div class="gpen-row"><button type="button" class="gpen-btn" data-dreset><i class="fa-solid fa-rotate-left"></i><span>이 아이콘 기본값</span></button><button type="button" class="gpen-btn" data-dresetall><i class="fa-solid fa-trash-arrow-up"></i><span>전부 기본값 복원</span></button></div>`;
+}
+
 /* UI */
 function buildBar() {
     $('#ghostpen_bar').remove();
@@ -424,9 +501,9 @@ function buildBar() {
     const active = Object.entries(MODE).filter(([, v]) => st[v.flag]);
     if (!active.length) { updateRestoreUI(); return; } // 아이콘을 모두 끄면 숨김
     const bar = $('<div id="ghostpen_bar"></div>');
-    $('<div class="gpen-icon gpen-restore" title="원문 복원"><i class="fa-solid fa-rotate-left"></i></div>').on('click', restoreOriginal).appendTo(bar);
+    $(`<div class="gpen-icon gpen-restore" title="원문 복원" style="${iconStyle('restore')}">${iconInner('restore')}</div>`).on('click', restoreOriginal).appendTo(bar);
     for (const [k, v] of active) {
-        $(`<div class="gpen-icon" data-mode="${k}" title="${v.label}"><i class="fa-solid ${v.icon}"></i></div>`)
+        $(`<div class="gpen-icon" data-mode="${k}" title="${v.label}" style="${iconStyle(k)}">${iconInner(k)}</div>`)
             .on('click', () => onIconClick(k)).appendTo(bar);
     }
     // 입력창 바로 윗줄
@@ -466,6 +543,10 @@ function renderPanel(root) {
 
           <div class="gpen-section-title">입력창 아이콘</div>
           <div class="gpen-row">${chip('first')}${chip('third')}${chip('keep')}</div>
+          <details class="gpen-deco" ${decoOpen ? 'open' : ''}>
+            <summary>아이콘 꾸미기</summary>
+            <div class="gpen-deco-body">${decoHtml()}</div>
+          </details>
 
           <div class="gpen-section-title">강도</div>
           <div class="gpen-row">${segBtn('intensity', 'weak', '약')}${segBtn('intensity', 'mid', '중')}${segBtn('intensity', 'strong', '강')}</div>
@@ -532,6 +613,41 @@ function renderPanel(root) {
     });
     root.on('click.gpen', '.gpen-adv > summary', function () { advOpen = !$(this).parent().prop('open'); });
     root.on('change.gpen', 'select[data-k]', function () { S()[$(this).data('k')] = this.value; save(); });
+    const refreshDeco = () => root.find('.gpen-deco-body').html(decoHtml());
+    const refreshPreview = () => root.find('.gpen-deco-preview .gpen-icon').attr('style', iconStyle(decoSel) + 'cursor:default').html(iconInner(decoSel));
+    const warn = msg => { try { window.toastr?.warning(msg); } catch { /* 무시 */ } };
+    root.on('click.gpen', '.gpen-deco > summary', function () { decoOpen = !$(this).parent().prop('open'); });
+    root.on('click.gpen', '[data-dsel]', function () { decoSel = $(this).data('dsel'); refreshDeco(); });
+    root.on('click.gpen', '[data-dkind]', function () { setIc(decoSel, { kind: $(this).data('dkind') }); buildBar(); refreshDeco(); });
+    root.on('click.gpen', '[data-dshape]', function () { setIc(decoSel, { shape: $(this).data('dshape') }); buildBar(); refreshDeco(); });
+    root.on('click.gpen', '.gpen-dstep-btn', function () {
+        const c = ic(decoSel);
+        setIc(decoSel, { size: Math.min(64, Math.max(20, (Number(c.size) || 32) + 2 * Number($(this).data('dd')))) });
+        buildBar(); refreshDeco();
+    });
+    root.on('input.gpen', '[data-dtext]', function () { setIc(decoSel, { emoji: this.value.trim() }); buildBar(); refreshPreview(); });
+    root.on('change.gpen', '[data-dimg]', function () {
+        const u = this.value.trim();
+        if (u && !safeSrc(u)) { warn('이미지 주소는 http(s)://로 시작해야 해요.'); return; }
+        if (!u && String(ic(decoSel).img).startsWith('data:')) return; // 올린 이미지는 빈칸으로 지워지지 않게
+        setIc(decoSel, { img: u }); buildBar(); refreshPreview();
+    });
+    root.on('click.gpen', '[data-dupload]', function () { root.find('[data-dfile]').trigger('click'); });
+    root.on('change.gpen', '[data-dfile]', async function () {
+        const f = this.files?.[0]; this.value = '';
+        if (!f) return;
+        if (f.size > 5 * 1024 * 1024) { warn('5MB 이하 이미지만 쓸 수 있어요.'); return; }
+        try { setIc(decoSel, { img: await fileToIcon(f) }); buildBar(); refreshDeco(); }
+        catch { warn('이미지를 불러오지 못했어요.'); }
+    });
+    root.on('input.gpen', '[data-dcolor]', function () { setIc(decoSel, { [$(this).data('dcolor')]: this.value }); buildBar(); refreshPreview(); });
+    root.on('change.gpen', '[data-dcolor]', function () { refreshDeco(); });
+    root.on('click.gpen', '[data-dcolor-reset]', function () { setIc(decoSel, { [$(this).data('dcolor-reset')]: '' }); buildBar(); refreshDeco(); });
+    root.on('click.gpen', '[data-dreset]', function () { const s = S(); if (s.icons) delete s.icons[decoSel]; save(); buildBar(); refreshDeco(); });
+    root.on('click.gpen', '[data-dresetall]', function () {
+        if (!window.confirm('모든 아이콘을 기본값으로 되돌릴까요?')) return;
+        S().icons = {}; save(); buildBar(); refreshDeco();
+    });
     root.on('click.gpen', '.gpen-restore-btn', restoreOriginal);
     root.on('click.gpen', '.gpen-copy-one', async function () {
         const l = S().logs[Number($(this).data('i'))];
