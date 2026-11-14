@@ -312,3 +312,17 @@
 :where(#send_form.gpen-merge) :where(#ghostpen_bar) { order: 1; flex: 1 1 0; min-width: 0; width: auto; flex-wrap: nowrap; gap: 4px; padding: 0 2px; }
 #send_form.gpen-merge #rightSendForm { order: 2; flex: 0 0 auto; }
 #send_form.gpen-merge #send_textarea { order: 3; flex: 1 0 100%; width: 100%; }
+
+/* v0.7.1 정렬 (사용자 CSS가 항상 우선) */
+:where(#ghostpen_bar.gpen-al-left) { justify-content: flex-start; }
+:where(#ghostpen_bar.gpen-al-center) { justify-content: center; }
+:where(#ghostpen_bar.gpen-al-right) { justify-content: flex-end; }
+
+/* v0.7.1 아이콘 꾸미기 여백 정리 */
+.gpen-deco-body .gpen-field { gap: 6px; margin-bottom: 14px; }
+.gpen-deco-body .gpen-field > .gpen-row { margin-bottom: 0; }
+.gpen-deco-body .gpen-field .gpen-field { gap: 8px; margin: 8px 0 0; }
+.gpen-deco-body > .gpen-row:first-child { margin-bottom: 8px; }
+.gpen-deco-body > .gpen-row:last-child { margin-bottom: 0; }
+.gpen-deco-preview { height: 72px; margin: 0 0 8px; }
+.gpen-deco-body .gpen-colorfold { margin: 0 0 14px; }

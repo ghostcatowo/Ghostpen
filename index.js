@@ -1,6 +1,6 @@
-// Ghostpen v0.7.0 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.1 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.0';
+const VERSION = '0.7.1';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -19,6 +19,7 @@ const DEFAULTS = {
     timeoutSec: 120,
     logs: [],
     icons: {},            // 아이콘 꾸미기 (바꾼 것만 저장)
+    align: 'right',       // 아이콘 줄 정렬: 'left' | 'center' | 'right'
     place: 'row',         // 'row' 입력창 위 별도 줄(기본) / 'merge' 삼줄·마법봉·전송과 한 줄
 };
 const MAX_LOGS = 20;
@@ -470,6 +471,7 @@ function fileToIcon(file) { // 올린 이미지를 작게 줄여 저장
         fr.readAsDataURL(file);
     });
 }
+const alignOf = st => ['left', 'center'].includes(st.align) ? st.align : 'right';
 const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const rgb2hex = (r, g, b) => '#' + [r, g, b].map(v => Math.min(255, Math.max(0, Math.round(Number(v) || 0))).toString(16).padStart(2, '0')).join('');
 function themeRGB(cssVar) { // 테마 기본색을 RGB로 읽기
@@ -515,24 +517,30 @@ function decoHtml() {
 
 /* UI */
 function buildBar() {
-    $('#ghostpen_bar').remove();
     $('#send_form').removeClass('gpen-inline gpen-merge');
     const st = S();
+    let bar = $('#ghostpen_bar');
+    bar.children('.gpen-icon').remove(); // 우리 아이콘만 교체 (다른 확장이 줄 안에 붙인 것은 지우지 않음)
     const active = Object.entries(MODE).filter(([, v]) => st[v.flag]);
-    if (!active.length) { updateRestoreUI(); return; } // 아이콘을 모두 끄면 숨김
-    const bar = $('<div id="ghostpen_bar"></div>');
-    $(`<div class="gpen-icon gpen-restore" title="원문 복원" style="${iconStyle('restore')}">${iconInner('restore')}</div>`).on('click', restoreOriginal).appendTo(bar);
+    if (!active.length) { // 아이콘을 모두 끄면 숨김
+        if (bar.length && !bar.children().length) bar.remove();
+        updateRestoreUI(); return;
+    }
+    if (!bar.length) bar = $('<div id="ghostpen_bar"></div>');
+    const icons = $('<div></div>');
+    $(`<div class="gpen-icon gpen-restore" title="원문 복원" style="${iconStyle('restore')}">${iconInner('restore')}</div>`).on('click', restoreOriginal).appendTo(icons);
     for (const [k, v] of active) {
         $(`<div class="gpen-icon" data-mode="${k}" title="${v.label}" style="${iconStyle(k)}">${iconInner(k)}</div>`)
-            .on('click', () => onIconClick(k)).appendTo(bar);
+            .on('click', () => onIconClick(k)).appendTo(icons);
     }
-    // 입력창 바로 윗줄
+    bar.prepend(icons.children());
+    bar.removeClass('gpen-al-left gpen-al-center gpen-al-right').addClass(`gpen-al-${alignOf(st)}`);
     const rightForm = $('#rightSendForm');
     const nonQR = $('#nonQRFormItems');
-    if (st.place === 'merge' && rightForm.length) { // 한 줄: 입력창 묶음 안 (전송 버튼 앞)
+    if (st.place === 'merge' && rightForm.length) { // 같이: 입력창 묶음 안 (전송 버튼 앞)
         rightForm.before(bar);
         $('#send_form').addClass('gpen-merge');
-    } else if (nonQR.length) nonQR.before(bar); else $('#send_form').prepend(bar);
+    } else if (nonQR.length) nonQR.before(bar); else $('#send_form').prepend(bar); // 따로: 입력창 위 별도 줄
     updateRestoreUI();
 }
 
@@ -568,8 +576,9 @@ function renderPanel(root) {
           <div class="gpen-section-title">아이콘</div>
           <div class="gpen-row">${chip('first')}${chip('third')}${chip('keep')}</div>
           <div class="gpen-field"><label>위치</label>
-            <div class="gpen-row"><button type="button" class="gpen-btn gpen-seg ${st.place !== 'merge' ? 'gpen-on' : ''}" data-dplace="row"><span>위 줄</span></button><button type="button" class="gpen-btn gpen-seg ${st.place === 'merge' ? 'gpen-on' : ''}" data-dplace="merge"><span>한 줄</span></button></div>
-            <div class="gpen-hint gpen-muted">위 줄: 입력창 위에 따로 놓여요 (기본). 한 줄: 삼줄·마법봉·전송 버튼과 같은 줄에 놓여요.</div></div>
+            <div class="gpen-row"><button type="button" class="gpen-btn gpen-seg ${st.place !== 'merge' ? 'gpen-on' : ''}" data-dplace="row"><span>따로</span></button><button type="button" class="gpen-btn gpen-seg ${st.place === 'merge' ? 'gpen-on' : ''}" data-dplace="merge"><span>같이</span></button></div></div>
+          <div class="gpen-field"><label>정렬</label>
+            <div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>
           <details class="gpen-deco" ${decoOpen ? 'open' : ''}>
             <summary>아이콘 꾸미기</summary>
             <div class="gpen-deco-body">${decoHtml()}</div>
@@ -648,6 +657,10 @@ function renderPanel(root) {
     root.on('click.gpen', '[data-dplace]', function () {
         S().place = $(this).data('dplace'); save(); buildBar();
         root.find('[data-dplace]').each(function () { $(this).toggleClass('gpen-on', $(this).data('dplace') === (S().place === 'merge' ? 'merge' : 'row')); });
+    });
+    root.on('click.gpen', '[data-dalign]', function () {
+        S().align = $(this).data('dalign'); save(); buildBar();
+        root.find('[data-dalign]').each(function () { $(this).toggleClass('gpen-on', $(this).data('dalign') === alignOf(S())); });
     });
     root.on('click.gpen', '[data-dsel]', function () { decoSel = $(this).data('dsel'); refreshDeco(); });
     root.on('click.gpen', '[data-dkind]', function () { setIc(decoSel, { kind: $(this).data('dkind') }); buildBar(); refreshDeco(); });
