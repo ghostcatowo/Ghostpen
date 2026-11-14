@@ -295,3 +295,13 @@
 .gpen-rng::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px solid #888; cursor: pointer; }
 .gpen-rng::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #888; cursor: pointer; }
 .gpen-rgb { width: 62px; flex: 0 0 auto; }
+
+/* v0.5.3 색 접이식 */
+.gpen-colorfold { border: 1px solid var(--SmartThemeBorderColor); border-radius: 8px; padding: 6px 10px; margin: 6px 0; }
+.gpen-colorfold > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; min-height: 34px; }
+.gpen-colorfold > summary::-webkit-details-marker { display: none; }
+.gpen-colorfold > summary::after { content: '▸'; opacity: .7; }
+.gpen-colorfold[open] > summary::after { content: '▾'; }
+.gpen-colorfold .gpen-fold-state { margin-left: auto; opacity: .7; font-size: .85em; }
+.gpen-colorfold[open] > summary { margin-bottom: 6px; }
+.gpen-colorfold .gpen-swatch { width: 22px; height: 22px; }

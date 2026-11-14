@@ -1,6 +1,6 @@
-// Ghostpen v0.5.2 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.5.3 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.5.2';
+const VERSION = '0.5.3';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -479,6 +479,7 @@ function themeRGB(cssVar) { // 테마 기본색을 RGB로 읽기
     el.remove();
     return m && m.length >= 3 ? m.slice(0, 3).map(n => Math.round(Number(n))) : [200, 200, 200];
 }
+const decoColorOpen = {};
 let decoSel = 'first';
 let decoOpen = false;
 function decoHtml() {
@@ -489,7 +490,7 @@ function decoHtml() {
         const set = safeColor(val);
         const [r, g, b] = set ? hex2rgb(set) : themeRGB(key === 'color' ? '--SmartThemeBodyColor' : '--SmartThemeBorderColor');
         const ch = [r, g, b].map((v, i) => `<div class="gpen-chrow"><b>${'RGB'[i]}</b><input type="range" min="0" max="255" step="1" class="gpen-rng gpen-rng-${'rgb'[i]}" data-drgb="${key}" value="${v}"><input type="number" inputmode="numeric" min="0" max="255" class="text_pole gpen-rgb" data-drgb="${key}" value="${v}"></div>`).join('');
-        return `<div class="gpen-field"><label>${label}</label><div class="gpen-colorrow"><div class="gpen-colortop"><span class="gpen-swatch" style="background:${rgb2hex(r, g, b)}"></span><button type="button" class="gpen-btn" data-dcolor-reset="${key}"><span>${set ? '기본색으로' : '기본색 사용 중'}</span></button></div>${ch}</div></div>`;
+        return `<details class="gpen-colorfold" data-k="${key}" ${decoColorOpen[key] ? 'open' : ''}><summary><span class="gpen-swatch" style="background:${rgb2hex(r, g, b)}"></span><span>${label}</span><span class="gpen-fold-state">${set ? `RGB ${r}, ${g}, ${b}` : '기본색'}</span></summary><div class="gpen-colorrow">${ch}<div class="gpen-colortop"><button type="button" class="gpen-btn" data-dcolor-reset="${key}"><span>${set ? '기본색으로' : '기본색 사용 중'}</span></button></div></div></details>`;
     };
     let kindBody = '';
     if (c.kind === 'emoji') {
@@ -558,7 +559,7 @@ function renderPanel(root) {
         <div class="gpen-pane ${curTab === 'set' ? 'on' : ''}" data-pane="set">
           <div class="gpen-row"><button type="button" class="gpen-btn gpen-restore-btn ${lastOriginal === null ? 'gpen-dim' : ''}"><i class="fa-solid fa-rotate-left"></i><span>원문 복원</span></button></div>
 
-          <div class="gpen-section-title">입력창 아이콘</div>
+          <div class="gpen-section-title">아이콘</div>
           <div class="gpen-row">${chip('first')}${chip('third')}${chip('keep')}</div>
           <details class="gpen-deco" ${decoOpen ? 'open' : ''}>
             <summary>아이콘 꾸미기</summary>
@@ -634,6 +635,7 @@ function renderPanel(root) {
     const refreshPreview = () => root.find('.gpen-deco-preview .gpen-icon').attr('style', iconStyle(decoSel) + 'cursor:default').html(iconInner(decoSel));
     const warn = msg => { try { window.toastr?.warning(msg); } catch { /* 무시 */ } };
     root.on('click.gpen', '.gpen-deco > summary', function () { decoOpen = !$(this).parent().prop('open'); });
+    root.on('click.gpen', '.gpen-colorfold > summary', function () { const d = $(this).parent(); decoColorOpen[d.data('k')] = !d.prop('open'); });
     root.on('click.gpen', '[data-dsel]', function () { decoSel = $(this).data('dsel'); refreshDeco(); });
     root.on('click.gpen', '[data-dkind]', function () { setIc(decoSel, { kind: $(this).data('dkind') }); buildBar(); refreshDeco(); });
     root.on('click.gpen', '[data-dshape]', function () { setIc(decoSel, { shape: $(this).data('dshape') }); buildBar(); refreshDeco(); });
@@ -668,7 +670,9 @@ function renderPanel(root) {
         if (vals.some(v => v === '')) return;
         const hex = rgb2hex(...vals);
         setIc(decoSel, { [$(this).data('drgb')]: hex });
-        row.find('.gpen-swatch').css('background', hex);
+        const fold = $(this).closest('.gpen-colorfold');
+        fold.find('.gpen-swatch').css('background', hex);
+        fold.find('.gpen-fold-state').text(`RGB ${vals.map(v => Math.min(255, Math.max(0, Math.round(Number(v) || 0)))).join(', ')}`);
         row.find('[data-dcolor-reset] span').text('기본색으로');
         buildBar(); refreshPreview();
     });
