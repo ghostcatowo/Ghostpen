@@ -3,7 +3,7 @@
  */
 
 /* 입력창 위 아이콘 줄 */
-#ghostpen_bar {
+:where(#ghostpen_bar) {
     flex: 0 0 100%;
     width: 100%;
     box-sizing: border-box;
@@ -306,14 +306,9 @@
 .gpen-colorfold[open] > summary { margin-bottom: 6px; }
 .gpen-colorfold .gpen-swatch { width: 22px; height: 22px; }
 
-/* v0.6.1 입력창 묶음 안: 모양은 기존과 동일 (아이콘 줄이 위 오른쪽, 아래 줄에 삼줄·마법봉·입력칸·전송) */
-#send_form.gpen-inline #nonQRFormItems { flex-wrap: wrap; }
-#send_form.gpen-inline #ghostpen_bar { order: -1; flex: 0 0 100%; width: 100%; }
-#send_form.gpen-inline #leftSendForm { order: 0; }
-#send_form.gpen-inline #send_textarea { order: 1; flex: 1 1 0; min-width: 0; }
-#send_form.gpen-inline #rightSendForm { order: 2; }
-
-/* 한 줄: [삼줄·마법봉] [고펜 아이콘] [전송] / 입력칸은 아래 줄 */
-#send_form.gpen-merge #nonQRFormItems { align-items: center; }
-#send_form.gpen-merge #ghostpen_bar { order: 1; flex: 0 1 auto; width: auto; margin-left: auto; padding: 0 2px; }
+/* v0.7.0 한 줄: [삼줄·마법봉] [고펜 아이콘] [전송] / 입력칸은 아래 줄 */
+#send_form.gpen-merge #nonQRFormItems { flex-wrap: wrap; align-items: center; }
+#send_form.gpen-merge #leftSendForm { order: 0; }
+:where(#send_form.gpen-merge) :where(#ghostpen_bar) { order: 1; flex: 1 1 0; min-width: 0; width: auto; flex-wrap: nowrap; gap: 4px; padding: 0 2px; }
+#send_form.gpen-merge #rightSendForm { order: 2; flex: 0 0 auto; }
 #send_form.gpen-merge #send_textarea { order: 3; flex: 1 0 100%; width: 100%; }
