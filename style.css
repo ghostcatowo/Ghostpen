@@ -255,3 +255,30 @@
 .gpen-colorrow { display: flex; align-items: center; gap: 10px; }
 .gpen-colorrow input[type="color"] { width: 44px; height: 34px; padding: 0; border: 1px solid var(--SmartThemeBorderColor); border-radius: 8px; background: transparent; cursor: pointer; }
 .gpen-deco .gpen-seg { min-height: 36px; }
+
+/* v0.5.1 */
+.gpen-icon i { opacity: 0.8; }
+.gpen-icon:hover i { opacity: 1; }
+
+/* 선택 버튼 줄: 한 줄, 같은 너비, 글자 줄바꿈 없음 */
+.gpen-row:has(> .gpen-seg), .gpen-row:has(> .gpen-chip) {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+}
+.gpen-seg, .gpen-chip { white-space: nowrap; padding: 0 4px; }
+.gpen-seg span, .gpen-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gpen-btn { white-space: nowrap; }
+
+/* 미리보기 칸 고정 (크기를 바꿔도 칸이 움직이지 않음) */
+.gpen-deco-preview {
+    height: 84px;
+    padding: 0;
+    align-items: center;
+    overflow: hidden;
+}
+
+/* RGB 입력 */
+.gpen-colorrow { flex-wrap: wrap; gap: 8px; }
+.gpen-swatch { width: 28px; height: 28px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 6px; flex: 0 0 auto; }
+.gpen-rgb { width: 60px; min-width: 0; margin: 0; text-align: center; box-sizing: border-box; }

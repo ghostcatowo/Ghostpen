@@ -1,6 +1,6 @@
-// Ghostpen v0.5.0 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.5.1 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.5.0';
+const VERSION = '0.5.1';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -398,7 +398,7 @@ function setBusy(mode, busy) {
         const m = $(this).data('mode');
         const active = busy && m === mode;
         $(this).toggleClass('gpen-active', active);
-        $(this).html(active ? '<i class="fa-solid fa-spinner fa-spin"></i>' : iconInner(m));
+        $(this).html(iconInner(m, active));
     });
 }
 
@@ -422,17 +422,19 @@ function clearOriginal() { lastOriginal = null; updateRestoreUI(); }
 /* 아이콘 꾸미기 */
 const ICON_KEYS = ['first', 'third', 'keep', 'restore'];
 const ICON_DEF = { kind: 'default', emoji: '', img: '', size: 32, color: '', bcolor: '', shape: 'default' };
-const SHAPES = { default: '기본', round: '동그라미', square: '네모', none: '없음' };
+const SHAPES = { default: '기본', round: '원', square: '네모', none: '없음' };
 const iconMeta = k => k === 'restore' ? { label: '복원', icon: 'fa-rotate-left' } : MODE[k];
 const ic = k => ({ ...ICON_DEF, ...(S().icons?.[k] || {}) });
 function setIc(k, patch) { const s = S(); if (!s.icons) s.icons = {}; s.icons[k] = { ...ic(k), ...patch }; save(); }
 const safeColor = c => /^#[0-9a-f]{6}$/i.test(c || '') ? c : '';
 const safeSrc = u => /^(https?:\/\/|data:image\/|\/)/i.test(u || '') ? u : '';
-function iconInner(k) {
+function iconInner(k, spin = false) {
     const c = ic(k);
-    if (c.kind === 'emoji' && c.emoji) return `<span class="gpen-emo" style="font-size:${Math.round(c.size * 0.55)}px">${esc(c.emoji)}</span>`;
-    if (c.kind === 'image' && safeSrc(c.img)) return `<img src="${esc(c.img)}" alt="">`;
-    return `<i class="fa-solid ${iconMeta(k).icon}"></i>`;
+    const sz = Math.min(64, Math.max(20, Number(c.size) || 32));
+    if (!spin && c.kind === 'emoji' && c.emoji) return `<span class="gpen-emo" style="font-size:${Math.round(sz * 0.55)}px">${esc(c.emoji)}</span>`;
+    if (!spin && c.kind === 'image' && safeSrc(c.img)) return `<img src="${esc(c.img)}" alt="">`;
+    const col = c.kind === 'default' && safeColor(c.color) ? `color:${c.color};opacity:1;` : '';
+    return `<i class="fa-solid ${spin ? 'fa-spinner fa-spin' : iconMeta(k).icon}" style="font-size:${Math.round(sz * 0.5)}px;${col}"></i>`;
 }
 function iconStyle(k) {
     const c = ic(k);
@@ -467,16 +469,30 @@ function fileToIcon(file) { // 올린 이미지를 작게 줄여 저장
         fr.readAsDataURL(file);
     });
 }
+const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const rgb2hex = (r, g, b) => '#' + [r, g, b].map(v => Math.min(255, Math.max(0, Math.round(Number(v) || 0))).toString(16).padStart(2, '0')).join('');
+function themeRGB(cssVar) { // 테마 기본색을 RGB로 읽기
+    const el = document.createElement('span');
+    el.style.color = `var(${cssVar})`;
+    document.body.appendChild(el);
+    const m = getComputedStyle(el).color.match(/\d+(\.\d+)?/g);
+    el.remove();
+    return m && m.length >= 3 ? m.slice(0, 3).map(n => Math.round(Number(n))) : [200, 200, 200];
+}
 let decoSel = 'first';
 let decoOpen = false;
 function decoHtml() {
     const c = ic(decoSel);
     const seg = (attr, v, label, cur) => `<button type="button" class="gpen-btn gpen-seg ${cur === v ? 'gpen-on' : ''}" data-${attr}="${v}"><span>${label}</span></button>`;
     const sels = ICON_KEYS.map(k => seg('dsel', k, iconMeta(k).label, decoSel)).join('');
-    const colorRow = (key, label, val) => `<div class="gpen-field"><label>${label}</label><div class="gpen-colorrow"><input type="color" data-dcolor="${key}" value="${safeColor(val) || '#ffffff'}"><button type="button" class="gpen-btn" data-dcolor-reset="${key}"><span>${safeColor(val) ? '기본색으로' : '기본색 사용 중'}</span></button></div></div>`;
+    const colorRow = (key, label, val) => {
+        const set = safeColor(val);
+        const [r, g, b] = set ? hex2rgb(set) : themeRGB(key === 'color' ? '--SmartThemeBodyColor' : '--SmartThemeBorderColor');
+        return `<div class="gpen-field"><label>${label} (RGB 0~255)</label><div class="gpen-colorrow"><span class="gpen-swatch" style="background:${rgb2hex(r, g, b)}"></span>${[r, g, b].map((v, i) => `<input type="number" inputmode="numeric" min="0" max="255" class="text_pole gpen-rgb" data-drgb="${key}" placeholder="${'RGB'[i]}" value="${v}">`).join('')}<button type="button" class="gpen-btn" data-dcolor-reset="${key}"><span>${set ? '기본색으로' : '기본색 사용 중'}</span></button></div></div>`;
+    };
     let kindBody = '';
     if (c.kind === 'emoji') {
-        kindBody = `<div class="gpen-field"><input type="text" class="text_pole" data-dtext maxlength="8" placeholder="이모지 입력 (예: ✨)" value="${esc(c.emoji)}"></div>`;
+        kindBody = `<div class="gpen-field"><input type="text" class="text_pole" data-dtext maxlength="8" placeholder="이모지 입력 (예: 💀)" value="${esc(c.emoji)}"></div>`;
     } else if (c.kind === 'image') {
         const isData = String(c.img).startsWith('data:');
         kindBody = `<div class="gpen-field"><input type="text" class="text_pole" data-dimg placeholder="${isData ? '올린 이미지를 쓰는 중이에요' : '이미지 주소 (https://...)'}" value="${isData ? '' : esc(c.img)}">
@@ -622,8 +638,10 @@ function renderPanel(root) {
     root.on('click.gpen', '[data-dshape]', function () { setIc(decoSel, { shape: $(this).data('dshape') }); buildBar(); refreshDeco(); });
     root.on('click.gpen', '.gpen-dstep-btn', function () {
         const c = ic(decoSel);
-        setIc(decoSel, { size: Math.min(64, Math.max(20, (Number(c.size) || 32) + 2 * Number($(this).data('dd')))) });
-        buildBar(); refreshDeco();
+        const size = Math.min(64, Math.max(20, (Number(c.size) || 32) + 2 * Number($(this).data('dd'))));
+        setIc(decoSel, { size });
+        $(this).closest('.gpen-dstep').find('.gpen-step-val').text(size);
+        buildBar(); refreshPreview();
     });
     root.on('input.gpen', '[data-dtext]', function () { setIc(decoSel, { emoji: this.value.trim() }); buildBar(); refreshPreview(); });
     root.on('change.gpen', '[data-dimg]', function () {
@@ -640,8 +658,20 @@ function renderPanel(root) {
         try { setIc(decoSel, { img: await fileToIcon(f) }); buildBar(); refreshDeco(); }
         catch { warn('이미지를 불러오지 못했어요.'); }
     });
-    root.on('input.gpen', '[data-dcolor]', function () { setIc(decoSel, { [$(this).data('dcolor')]: this.value }); buildBar(); refreshPreview(); });
-    root.on('change.gpen', '[data-dcolor]', function () { refreshDeco(); });
+    root.on('input.gpen', '.gpen-rgb', function () {
+        const row = $(this).closest('.gpen-colorrow');
+        const vals = row.find('.gpen-rgb').map((i, e) => e.value).get();
+        if (vals.some(v => v === '')) return;
+        const hex = rgb2hex(...vals);
+        setIc(decoSel, { [$(this).data('drgb')]: hex });
+        row.find('.gpen-swatch').css('background', hex);
+        row.find('[data-dcolor-reset] span').text('기본색으로');
+        buildBar(); refreshPreview();
+    });
+    root.on('change.gpen', '.gpen-rgb', function () {
+        this.value = Math.min(255, Math.max(0, Math.round(Number(this.value) || 0)));
+        $(this).trigger('input');
+    });
     root.on('click.gpen', '[data-dcolor-reset]', function () { setIc(decoSel, { [$(this).data('dcolor-reset')]: '' }); buildBar(); refreshDeco(); });
     root.on('click.gpen', '[data-dreset]', function () { const s = S(); if (s.icons) delete s.icons[decoSel]; save(); buildBar(); refreshDeco(); });
     root.on('click.gpen', '[data-dresetall]', function () {
