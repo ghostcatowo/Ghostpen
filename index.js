@@ -1,6 +1,6 @@
-// Ghostpen v0.7.2 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.3 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.2';
+const VERSION = '0.7.3';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -369,7 +369,7 @@ async function runGhostpen(mode) {
     } catch (e) {
         if (!run || run.id !== id || run.cancelled) return; // 취소는 실패 아님
         const timedOut = run.timedOut;
-        toastr.error('대필 실패 😢')?.css({ 'border-radius': '14px', 'background-color': '#8c3b4a', 'background-image': 'none', color: '#fff' });
+        toastr.error('👻 펜 뽀려요 대필 실패 ! 👻')?.css({ 'border-radius': '14px', 'background-color': 'var(--SmartThemeBlurTintColor)', 'background-image': 'none', color: 'var(--SmartThemeBodyColor)', border: '1px solid var(--SmartThemeBorderColor)' });
         const detail = timedOut ? `${st.timeoutSec}초 안에 응답이 오지 않았어요.` : String(e?.message || e).slice(0, 600);
         addLog({
             level: 'fail', result: '❌ 실패', stage,

@@ -347,3 +347,6 @@
 /* 기록 탭 */
 .gpen-logbar { margin-bottom: 12px; }
 .gpen-log { margin-bottom: 8px; }
+
+/* v0.7.3 미리보기: 최대 크기(64px)에서도 위아래 12px 여백 */
+.gpen-deco-preview { height: 88px; margin: 0 0 12px; box-sizing: border-box; }
