@@ -350,3 +350,14 @@
 
 /* v0.7.3 미리보기: 최대 크기(64px)에서도 위아래 12px 여백 */
 .gpen-deco-preview { height: 88px; margin: 0 0 12px; box-sizing: border-box; }
+
+/* v0.7.4 여백 재조정
+ * 제목→컨트롤 6px / 항목 사이 16px (제목이 위쪽 버튼에 붙어 보이지 않게)
+ * 미리보기 아이콘 위아래 여백을 같게 */
+.gpen-row, .gpen-field, .gpen-adv, .gpen-deco, .gpen-colorfold { margin-bottom: 16px; }
+.gpen-hint { margin: -8px 0 16px; }
+.gpen-deco-body > .gpen-row:first-child { margin-bottom: 14px; }
+.gpen-deco-preview { margin: 0 0 12px; }
+.gpen-deco-body .gpen-colorfold { margin: 0 0 16px; }
+.gpen-field > .gpen-row, .gpen-field > .gpen-step, .gpen-field > .gpen-dstep { margin-bottom: 0; }
+.gpen-deco-body > :last-child, .gpen-adv > :last-child, .gpen-colorrow > :last-child { margin-bottom: 0; }
