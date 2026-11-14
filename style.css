@@ -282,3 +282,16 @@
 .gpen-colorrow { flex-wrap: wrap; gap: 8px; }
 .gpen-swatch { width: 28px; height: 28px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 6px; flex: 0 0 auto; }
 .gpen-rgb { width: 60px; min-width: 0; margin: 0; text-align: center; box-sizing: border-box; }
+
+/* v0.5.2 색 슬라이드 바 */
+.gpen-colorrow { display: flex; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
+.gpen-colortop { display: flex; align-items: center; gap: 10px; }
+.gpen-chrow { display: flex; align-items: center; gap: 10px; }
+.gpen-chrow b { width: 14px; text-align: center; opacity: .8; }
+.gpen-rng { flex: 1 1 auto; min-width: 0; height: 10px; margin: 0; border-radius: 6px; -webkit-appearance: none; appearance: none; outline: none; border: 1px solid var(--SmartThemeBorderColor); }
+.gpen-rng-r { background: linear-gradient(to right, #000, #f00); }
+.gpen-rng-g { background: linear-gradient(to right, #000, #0f0); }
+.gpen-rng-b { background: linear-gradient(to right, #000, #00f); }
+.gpen-rng::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px solid #888; cursor: pointer; }
+.gpen-rng::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #888; cursor: pointer; }
+.gpen-rgb { width: 62px; flex: 0 0 auto; }

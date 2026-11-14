@@ -1,6 +1,6 @@
-// Ghostpen v0.5.1 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.5.2 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.5.1';
+const VERSION = '0.5.2';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -488,7 +488,8 @@ function decoHtml() {
     const colorRow = (key, label, val) => {
         const set = safeColor(val);
         const [r, g, b] = set ? hex2rgb(set) : themeRGB(key === 'color' ? '--SmartThemeBodyColor' : '--SmartThemeBorderColor');
-        return `<div class="gpen-field"><label>${label} (RGB 0~255)</label><div class="gpen-colorrow"><span class="gpen-swatch" style="background:${rgb2hex(r, g, b)}"></span>${[r, g, b].map((v, i) => `<input type="number" inputmode="numeric" min="0" max="255" class="text_pole gpen-rgb" data-drgb="${key}" placeholder="${'RGB'[i]}" value="${v}">`).join('')}<button type="button" class="gpen-btn" data-dcolor-reset="${key}"><span>${set ? '기본색으로' : '기본색 사용 중'}</span></button></div></div>`;
+        const ch = [r, g, b].map((v, i) => `<div class="gpen-chrow"><b>${'RGB'[i]}</b><input type="range" min="0" max="255" step="1" class="gpen-rng gpen-rng-${'rgb'[i]}" data-drgb="${key}" value="${v}"><input type="number" inputmode="numeric" min="0" max="255" class="text_pole gpen-rgb" data-drgb="${key}" value="${v}"></div>`).join('');
+        return `<div class="gpen-field"><label>${label}</label><div class="gpen-colorrow"><div class="gpen-colortop"><span class="gpen-swatch" style="background:${rgb2hex(r, g, b)}"></span><button type="button" class="gpen-btn" data-dcolor-reset="${key}"><span>${set ? '기본색으로' : '기본색 사용 중'}</span></button></div>${ch}</div></div>`;
     };
     let kindBody = '';
     if (c.kind === 'emoji') {
@@ -658,8 +659,11 @@ function renderPanel(root) {
         try { setIc(decoSel, { img: await fileToIcon(f) }); buildBar(); refreshDeco(); }
         catch { warn('이미지를 불러오지 못했어요.'); }
     });
-    root.on('input.gpen', '.gpen-rgb', function () {
+    root.on('input.gpen', '.gpen-rgb, .gpen-rng', function () {
         const row = $(this).closest('.gpen-colorrow');
+        const line = $(this).closest('.gpen-chrow');
+        if (this.type === 'range') line.find('.gpen-rgb').val(this.value);
+        else if (this.value !== '') line.find('.gpen-rng').val(Math.min(255, Math.max(0, Number(this.value) || 0)));
         const vals = row.find('.gpen-rgb').map((i, e) => e.value).get();
         if (vals.some(v => v === '')) return;
         const hex = rgb2hex(...vals);
