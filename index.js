@@ -273,7 +273,12 @@ async function runGhostpen(mode) {
     run = { id, controller, mode, cancelled: false, timedOut: false };
     setBusy(mode, true);
     const onInput = () => { if (run?.id === id && ta.value !== rawText) cancelRun('입력창이 변경되어 대필을 취소해요.'); };
-    const stopWatch = () => ta.removeEventListener('input', onInput);
+    // 전송할 때 ST가 입력창을 코드로 비우면 입력 신호가 안 올 수 있어서, 대필 중에만 0.25초마다 값을 비교한다
+    const poll = setInterval(() => {
+        if (run?.id !== id) return;
+        if (ta.value !== rawText) cancelRun(ta.value === '' ? '메시지가 전송되어 대필을 취소해요.' : '입력창이 변경되어 대필을 취소해요.');
+    }, 250);
+    const stopWatch = () => { ta.removeEventListener('input', onInput); clearInterval(poll); };
     ta.addEventListener('input', onInput);
     const t0 = Date.now();
     const conn = resolveConnection(st);
@@ -742,6 +747,7 @@ jQuery(() => {
         eventSource.on(event_types.MESSAGE_SENT, () => { cancelRun('메시지가 전송되어 대필을 취소해요.'); clearOriginal(); });
         eventSource.on(event_types.CHAT_CHANGED, () => { cancelRun('채팅이 변경되어 대필을 취소해요.'); clearOriginal(); });
     } catch { /* 무시 */ }
+    document.getElementById('send_but')?.addEventListener('click', () => cancelRun('메시지가 전송되어 대필을 취소해요.'), true); // 전송 버튼 (대필 중이 아니면 아무 일도 안 함)
     let tries = 0;
     const iv = setInterval(() => { addWandItem(); if ($('#ghostpen_wand').length || ++tries > 20) clearInterval(iv); }, 1000);
 });
