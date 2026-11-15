@@ -272,6 +272,9 @@ async function runGhostpen(mode) {
     const controller = new AbortController();
     run = { id, controller, mode, cancelled: false, timedOut: false };
     setBusy(mode, true);
+    const onInput = () => { if (run?.id === id && ta.value !== rawText) cancelRun('입력창이 변경되어 대필을 취소해요.'); };
+    const stopWatch = () => ta.removeEventListener('input', onInput);
+    ta.addEventListener('input', onInput);
     const t0 = Date.now();
     const conn = resolveConnection(st);
     const log = {
@@ -329,11 +332,7 @@ async function runGhostpen(mode) {
         const changed = quoted.filter(q => !out.includes(q)).length;
         if (changed) warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changed}개가 원문과 달라요.`);
 
-        if (ta.value !== rawText) { // 기다리는 동안 입력창을 고쳤으면 덮어쓰지 않음
-            try { window.toastr?.warning('대필하는 동안 입력창이 바뀌어서 결과를 넣지 않았어요.'); } catch { /* 무시 */ }
-            addLog({ level: 'warn', result: '⚠️ 결과를 넣지 않음', reason: '입력창 변경', detail: '생성 중에 입력창 내용이 바뀌어서 덮어쓰지 않았어요.', ...log, elapsed: `${((Date.now() - t0) / 1000).toFixed(1)}초` });
-            return;
-        }
+        stopWatch(); // 결과를 넣을 때 생기는 입력 이벤트로 취소되지 않게
         lastOriginal = rawText; // 요청 줄까지 포함해서 보관
         ta.value = out;
         ta.dispatchEvent(new Event('input', { bubbles: true }));
@@ -357,18 +356,20 @@ async function runGhostpen(mode) {
             ...log, elapsed: `${((Date.now() - t0) / 1000).toFixed(1)}초`,
         });
     } finally {
+        stopWatch();
         clearTimeout(timer);
         if (run && run.id === id) { run = null; setBusy(mode, false); }
     }
 }
 
-function cancelRun() {
+function cancelRun(reason) { // 진행 중인 대필을 즉시 취소. reason이 있으면 토스트로 이유를 알림
     if (!run) return;
     const m = run.mode;
     run.cancelled = true; run.controller.abort(); run = null; setBusy(m, false);
+    if (reason) { try { window.toastr?.info(reason); } catch { /* 무시 */ } }
 }
 function onIconClick(mode) {
-    if (run) { if (run.mode === mode) cancelRun(); return; }
+    if (run) { if (run.mode === mode) cancelRun(); return; } // 같은 아이콘을 다시 누르면 취소 (알림 없음)
     runGhostpen(mode);
 }
 function setBusy(mode, busy) {
@@ -516,7 +517,7 @@ function buildBar() {
     bar.removeClass('gpen-al-left gpen-al-center gpen-al-right').addClass(`gpen-al-${alignOf(st)}`);
     const rightForm = $('#rightSendForm');
     const nonQR = $('#nonQRFormItems');
-    if (st.place === 'merge' && rightForm.length && nonQR.length && rightForm.parent().is(nonQR)) { // 같이: 입력창 묶음 안 (전송 버튼 앞)
+    if (st.place === 'merge' && rightForm.length) { // 같이: 입력창 묶음 안 (전송 버튼 앞)
         rightForm.before(bar);
         $('#send_form').addClass('gpen-merge');
     } else if (nonQR.length) nonQR.before(bar); else $('#send_form').prepend(bar); // 따로: 입력창 위 별도 줄
@@ -738,8 +739,8 @@ jQuery(() => {
     addDrawer();
     try { // 전송/채팅 변경 시 원문 삭제
         const { eventSource, event_types } = ctx();
-        eventSource.on(event_types.MESSAGE_SENT, () => { cancelRun(); clearOriginal(); });
-        eventSource.on(event_types.CHAT_CHANGED, () => { cancelRun(); clearOriginal(); });
+        eventSource.on(event_types.MESSAGE_SENT, () => { cancelRun('메시지가 전송되어 대필을 취소해요.'); clearOriginal(); });
+        eventSource.on(event_types.CHAT_CHANGED, () => { cancelRun('채팅이 변경되어 대필을 취소해요.'); clearOriginal(); });
     } catch { /* 무시 */ }
     let tries = 0;
     const iv = setInterval(() => { addWandItem(); if ($('#ghostpen_wand').length || ++tries > 20) clearInterval(iv); }, 1000);
