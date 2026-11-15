@@ -20,7 +20,7 @@ const DEFAULTS = {
     logs: [],
     icons: {},            // 아이콘 꾸미기 (바꾼 것만 저장)
     align: 'right',       // 아이콘 줄 정렬: 'left' | 'center' | 'right'
-    place: 'row',         // 'row' 입력창 위 별도 줄(기본) / 'merge' 삼줄·마법봉·전송과 한 줄
+    place: 'row',         // 'row' 입력창 위 별도 줄(기본) / 'merge' 전송 버튼 바로 앞 (오른쪽 버튼 영역 안, 입력창 배치는 그대로)
 };
 const MAX_LOGS = 20;
 let curTab = 'set';
@@ -516,8 +516,9 @@ function buildBar() {
     bar.removeClass('gpen-al-left gpen-al-center gpen-al-right').addClass(`gpen-al-${alignOf(st)}`);
     const rightForm = $('#rightSendForm');
     const nonQR = $('#nonQRFormItems');
-    if (st.place === 'merge' && rightForm.length && nonQR.length && rightForm.parent().is(nonQR)) { // 같이: 입력창 묶음 안 (전송 버튼 앞)
-        rightForm.before(bar);
+    if (st.place === 'merge' && rightForm.length) { // 같이: 오른쪽 버튼 영역 안, 전송 버튼 바로 앞 (입력창 구조는 그대로 두고 아이콘만 끼워 넣음)
+        const sendBut = $('#send_but');
+        if (sendBut.length && sendBut.parent().is(rightForm)) sendBut.before(bar); else rightForm.prepend(bar);
         $('#send_form').addClass('gpen-merge');
     } else if (nonQR.length) nonQR.before(bar); else $('#send_form').prepend(bar); // 따로: 입력창 위 별도 줄
     if (run) setBusy(run.mode, true); // 대필 중에 아이콘이 다시 그려져도 취소할 수 있게 상태 복원
