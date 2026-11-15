@@ -1,4 +1,4 @@
-/* Ghostpen v0.7.6 */
+/* Ghostpen v0.7.9 */
 /* Ghostpen
  * .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어)
  */
@@ -251,8 +251,6 @@
 .popup:has(.gpen-popwrap) *::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 /* 아이콘 꾸미기 */
-.gpen-deco { margin: 4px 0 12px; }
-.gpen-deco-preview { display: flex; justify-content: center; padding: 8px 0 12px; }
 .gpen-colorrow { display: flex; align-items: center; gap: 10px; }
 .gpen-colorrow input[type="color"] { width: 44px; height: 34px; padding: 0; border: 1px solid var(--SmartThemeBorderColor); border-radius: 8px; background: transparent; cursor: pointer; }
 .gpen-deco .gpen-seg { min-height: 36px; }
@@ -270,14 +268,6 @@
 .gpen-seg, .gpen-chip { white-space: nowrap; padding: 0 4px; }
 .gpen-seg span, .gpen-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gpen-btn { white-space: nowrap; }
-
-/* 미리보기 칸 고정 (크기를 바꿔도 칸이 움직이지 않음) */
-.gpen-deco-preview {
-    height: 84px;
-    padding: 0;
-    align-items: center;
-    overflow: hidden;
-}
 
 /* RGB 입력 */
 .gpen-colorrow { flex-wrap: wrap; gap: 8px; }
@@ -312,21 +302,21 @@
 :where(#send_form.gpen-merge) :where(#leftSendForm) { grid-column: 1; grid-row: 1; }
 :where(#send_form.gpen-merge) :where(#ghostpen_bar) { grid-column: 2 / 4; grid-row: 1; min-width: 0; width: auto; margin: 0; flex-wrap: nowrap; gap: 4px; padding: 0 2px; }
 :where(#send_form.gpen-merge) :where(#send_textarea) { grid-column: 1 / 3; grid-row: 2; width: 100%; min-width: 0; }
-:where(#send_form.gpen-merge) :where(#rightSendForm) { grid-column: 3; grid-row: 2; align-self: center; } /* 따로일 때와 같은 세로 위치 (end → center) */
+:where(#send_form.gpen-merge) :where(#rightSendForm) { grid-column: 3; grid-row: 2; align-self: center; } /* v0.7.7 비행기: 아래(end)로 처지던 것을 따로와 같은 세로 위치로 */
 
 /* v0.7.1 정렬 (사용자 CSS가 항상 우선) */
 :where(#ghostpen_bar.gpen-al-left) { justify-content: flex-start; }
 :where(#ghostpen_bar.gpen-al-center) { justify-content: center; }
 :where(#ghostpen_bar.gpen-al-right) { justify-content: flex-end; }
 
-/* v0.7.2 여백 통일
- * 항목 사이 12px / 제목 위 20px·아래 8px / 묶음 안 6px / 중첩 8px */
+/* v0.7.9 여백 (v0.7.2~0.7.4에 겹쳐 있던 규칙을 최종 적용값 하나로 정리, 모양은 그대로)
+ * 항목 사이 16px / 제목 위 20px·아래 8px / 접이식 안 8px / 중첩 8px */
 .gpen-pane > :first-child { margin-top: 0; }
 .gpen-section-title { margin: 20px 0 8px; }
-.gpen-row, .gpen-field, .gpen-adv, .gpen-deco, .gpen-colorfold { margin: 0 0 12px; }
+.gpen-row, .gpen-field, .gpen-adv, .gpen-deco, .gpen-colorfold { margin: 0 0 16px; }
 .gpen-field { gap: 6px; }
-.gpen-hint { margin: -4px 0 12px; }
-.gpen-adv, .gpen-deco, .gpen-colorfold { padding: 4px 12px; }
+.gpen-hint { margin: -8px 0 16px; }
+.gpen-adv, .gpen-deco, .gpen-colorfold { padding: 4px 12px 8px; }
 .gpen-adv > summary, .gpen-deco > summary, .gpen-colorfold > summary { min-height: 34px; }
 .gpen-adv[open] > summary, .gpen-deco[open] > summary, .gpen-colorfold[open] > summary { margin-bottom: 8px; }
 
@@ -334,31 +324,14 @@
 .gpen-field > .gpen-row, .gpen-field > .gpen-step, .gpen-field > .gpen-dstep { margin-bottom: 0; }
 .gpen-field .gpen-field { margin: 8px 0 0; gap: 8px; }
 
+/* 아이콘 꾸미기: 미리보기 칸 고정 (크기를 바꿔도 칸이 움직이지 않음, 최대 64px 아이콘 위아래 12px) */
+.gpen-deco-preview { display: flex; justify-content: center; align-items: center; height: 88px; margin: 0 0 12px; padding: 0; overflow: hidden; box-sizing: border-box; }
+.gpen-deco-body > .gpen-row:first-child { margin-bottom: 14px; }
+.gpen-deco-body .gpen-colorfold { margin: 0 0 16px; }
+
 /* 접이식 안의 마지막 항목은 아래 여백 없음 */
 .gpen-adv > :last-child, .gpen-deco-body > :last-child, .gpen-colorrow > :last-child { margin-bottom: 0; }
-.gpen-adv { padding-bottom: 8px; }
-.gpen-deco { padding-bottom: 8px; }
-.gpen-colorfold { padding-bottom: 8px; }
-
-/* 아이콘 꾸미기 */
-.gpen-deco-body > .gpen-row:first-child { margin-bottom: 8px; }
-.gpen-deco-preview { height: 72px; margin: 0 0 12px; }
-.gpen-deco-body .gpen-colorfold { margin: 0 0 12px; }
 
 /* 기록 탭 */
 .gpen-logbar { margin-bottom: 12px; }
 .gpen-log { margin-bottom: 8px; }
-
-/* v0.7.3 미리보기: 최대 크기(64px)에서도 위아래 12px 여백 */
-.gpen-deco-preview { height: 88px; margin: 0 0 12px; box-sizing: border-box; }
-
-/* v0.7.4 여백 재조정
- * 제목→컨트롤 6px / 항목 사이 16px (제목이 위쪽 버튼에 붙어 보이지 않게)
- * 미리보기 아이콘 위아래 여백을 같게 */
-.gpen-row, .gpen-field, .gpen-adv, .gpen-deco, .gpen-colorfold { margin-bottom: 16px; }
-.gpen-hint { margin: -8px 0 16px; }
-.gpen-deco-body > .gpen-row:first-child { margin-bottom: 14px; }
-.gpen-deco-preview { margin: 0 0 12px; }
-.gpen-deco-body .gpen-colorfold { margin: 0 0 16px; }
-.gpen-field > .gpen-row, .gpen-field > .gpen-step, .gpen-field > .gpen-dstep { margin-bottom: 0; }
-.gpen-deco-body > :last-child, .gpen-adv > :last-child, .gpen-colorrow > :last-child { margin-bottom: 0; }

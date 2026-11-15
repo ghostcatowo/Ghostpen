@@ -1,6 +1,6 @@
-// Ghostpen v0.7.6 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.9 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.6';
+const VERSION = '0.7.9';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -262,8 +262,6 @@ function parseResponse(res) {
     return { text: typeof text === 'string' ? text : String(text ?? ''), finish };
 }
 
-const GEN_URL = /\/api\/backends\/[^/?]+\/generate(?:$|\?)/;
-
 async function runGhostpen(mode) {
     const c = ctx();
     const st = S();
@@ -284,35 +282,7 @@ async function runGhostpen(mode) {
     };
     let stage = '준비';
     let netInfo = '';
-    const origFetch = window.fetch;
-    let attached = false;
-    const wrappedFetch = async function (...args) {
-        try {
-            const url0 = String(args[0]?.url || args[0]);
-            if (conn.kind === 'raw' && !attached && GEN_URL.test(url0)) {
-                attached = true; // 생성 요청에 취소 신호 연결
-                const init = { ...(args[1] || {}) };
-                const merged = new AbortController();
-                const forward = () => merged.abort();
-                controller.signal.addEventListener('abort', forward, { once: true });
-                const own = init.signal;
-                if (own) { if (own.aborted) merged.abort(); else own.addEventListener('abort', forward, { once: true }); }
-                init.signal = merged.signal;
-                args = [args[0], init];
-            }
-        } catch { /* 무시 */ }
-        const res = await origFetch.apply(this, args);
-        try {
-            const url = String(args[0]?.url || args[0]);
-            if (!res.ok && !netInfo && GEN_URL.test(url)) {
-                const body = await res.clone().text();
-                netInfo = `HTTP ${res.status} ${res.statusText} ${url.split('?')[0]} → ${maskSecrets(body).slice(0, 500) || '(본문 없음)'}`;
-            }
-        } catch { /* 무시 */ }
-        return res;
-    };
-    window.fetch = wrappedFetch;
-    const timer = setTimeout(() => { if (run) run.timedOut = true; controller.abort(); }, Math.max(10, st.timeoutSec) * 1000);
+    const timer = setTimeout(() => { if (run?.id === id) run.timedOut = true; controller.abort(); }, Math.max(10, st.timeoutSec) * 1000);
     try {
         if (conn.missing) throw new Error('선택한 연결 프로필을 찾을 수 없어요. 프로필이 삭제됐을 수 있어요. 설정에서 다시 고르거나 "선택 안 함"으로 바꿔 주세요.');
         const messages = buildMessages(input, mode, st, request);
@@ -326,11 +296,12 @@ async function runGhostpen(mode) {
             const p = c.generateRaw({
                 prompt: c.mainApi === 'openai' ? messages.slice(1) : messages[1].content,
                 systemPrompt: messages[0].content, responseLength: maxTokens, trimNames: false,
+                signal: controller.signal, // 고펜 자기 요청에만 취소 신호 전달 (지원하지 않는 버전이면 무시됨)
             });
             p.catch(() => {});
             const aborted = new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(new DOMException('요청이 중단되었어요.', 'AbortError'))));
             res = await Promise.race([p, aborted]);
-            log.cancel = attached ? '취소 시 요청을 끊을 수 있어요' : '요청 주소를 찾지 못해 취소해도 서버 생성이 계속될 수 있어요';
+            log.cancel = '취소 신호를 보냈어요. 이 연결이 취소를 지원하지 않으면 서버 생성은 계속되고 결과만 무시해요';
         } else {
             const Svc = c.ConnectionManagerRequestService;
             if (!Svc) throw new Error('ConnectionManagerRequestService를 찾을 수 없어요. SillyTavern을 최신 버전으로 업데이트하고 Connection Manager 확장이 켜져 있는지 확인하세요.');
@@ -358,6 +329,11 @@ async function runGhostpen(mode) {
         const changed = quoted.filter(q => !out.includes(q)).length;
         if (changed) warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changed}개가 원문과 달라요.`);
 
+        if (ta.value !== rawText) { // 기다리는 동안 입력창을 고쳤으면 덮어쓰지 않음
+            try { window.toastr?.warning('대필하는 동안 입력창이 바뀌어서 결과를 넣지 않았어요.'); } catch { /* 무시 */ }
+            addLog({ level: 'warn', result: '⚠️ 결과를 넣지 않음', reason: '입력창 변경', detail: '생성 중에 입력창 내용이 바뀌어서 덮어쓰지 않았어요.', ...log, elapsed: `${((Date.now() - t0) / 1000).toFixed(1)}초` });
+            return;
+        }
         lastOriginal = rawText; // 요청 줄까지 포함해서 보관
         ta.value = out;
         ta.dispatchEvent(new Event('input', { bubbles: true }));
@@ -382,16 +358,17 @@ async function runGhostpen(mode) {
         });
     } finally {
         clearTimeout(timer);
-        if (window.fetch === wrappedFetch) window.fetch = origFetch;
         if (run && run.id === id) { run = null; setBusy(mode, false); }
     }
 }
 
+function cancelRun() {
+    if (!run) return;
+    const m = run.mode;
+    run.cancelled = true; run.controller.abort(); run = null; setBusy(m, false);
+}
 function onIconClick(mode) {
-    if (run) {
-        if (run.mode === mode) { const m = run.mode; run.cancelled = true; run.controller.abort(); run = null; setBusy(m, false); }
-        return;
-    }
+    if (run) { if (run.mode === mode) cancelRun(); return; }
     runGhostpen(mode);
 }
 function setBusy(mode, busy) {
@@ -429,7 +406,7 @@ const iconMeta = k => k === 'restore' ? { label: '복원', icon: 'fa-rotate-left
 const ic = k => ({ ...ICON_DEF, ...(S().icons?.[k] || {}) });
 function setIc(k, patch) { const s = S(); if (!s.icons) s.icons = {}; s.icons[k] = { ...ic(k), ...patch }; save(); }
 const safeColor = c => /^#[0-9a-f]{6}$/i.test(c || '') ? c : '';
-const safeSrc = u => /^(https?:\/\/|data:image\/|\/)/i.test(u || '') ? u : '';
+const safeSrc = u => /^(https?:\/\/|data:image\/|\/(?!\/))/i.test(u || '') ? u : ''; // //host/ 형태는 외부 주소라 막음
 function iconInner(k, spin = false) {
     const c = ic(k);
     const sz = Math.min(64, Math.max(20, Number(c.size) || 32));
@@ -510,7 +487,7 @@ function decoHtml() {
       <div class="gpen-row">${sels}</div>
       <div class="gpen-deco-preview"><div class="gpen-icon" style="${iconStyle(decoSel)}cursor:default">${iconInner(decoSel)}</div></div>
       <div class="gpen-field"><label>모양</label><div class="gpen-row">${seg('dkind', 'default', '기본', c.kind)}${seg('dkind', 'emoji', '이모지', c.kind)}${seg('dkind', 'image', '이미지', c.kind)}</div>${kindBody}</div>
-      <div class="gpen-field"><label>크기 (px)</label><div class="gpen-dstep"><button type="button" class="gpen-btn gpen-dstep-btn" data-dd="-1"><i class="fa-solid fa-minus"></i></button><span class="gpen-step-val">${c.size}</span><button type="button" class="gpen-btn gpen-dstep-btn" data-dd="1"><i class="fa-solid fa-plus"></i></button></div></div>
+      <div class="gpen-field"><label>크기 (px)</label><div class="gpen-dstep"><button type="button" class="gpen-btn gpen-dstep-btn" data-dd="-1"><i class="fa-solid fa-minus"></i></button><span class="gpen-step-val">${Math.min(64, Math.max(20, Number(c.size) || 32))}</span><button type="button" class="gpen-btn gpen-dstep-btn" data-dd="1"><i class="fa-solid fa-plus"></i></button></div></div>
       ${c.kind === 'default' ? colorRow('color', '아이콘 색', c.color) : ''}
       <div class="gpen-field"><label>테두리 모양</label><div class="gpen-row">${Object.entries(SHAPES).map(([v, l]) => seg('dshape', v, l, c.shape)).join('')}</div></div>
       ${c.shape !== 'none' ? colorRow('bcolor', '테두리 색', c.bcolor) : ''}
@@ -539,10 +516,11 @@ function buildBar() {
     bar.removeClass('gpen-al-left gpen-al-center gpen-al-right').addClass(`gpen-al-${alignOf(st)}`);
     const rightForm = $('#rightSendForm');
     const nonQR = $('#nonQRFormItems');
-    if (st.place === 'merge' && rightForm.length) { // 같이: 입력창 묶음 안 (전송 버튼 앞)
+    if (st.place === 'merge' && rightForm.length && nonQR.length && rightForm.parent().is(nonQR)) { // 같이: 입력창 묶음 안 (전송 버튼 앞)
         rightForm.before(bar);
         $('#send_form').addClass('gpen-merge');
     } else if (nonQR.length) nonQR.before(bar); else $('#send_form').prepend(bar); // 따로: 입력창 위 별도 줄
+    if (run) setBusy(run.mode, true); // 대필 중에 아이콘이 다시 그려져도 취소할 수 있게 상태 복원
     updateRestoreUI();
 }
 
@@ -760,8 +738,8 @@ jQuery(() => {
     addDrawer();
     try { // 전송/채팅 변경 시 원문 삭제
         const { eventSource, event_types } = ctx();
-        eventSource.on(event_types.MESSAGE_SENT, clearOriginal);
-        eventSource.on(event_types.CHAT_CHANGED, clearOriginal);
+        eventSource.on(event_types.MESSAGE_SENT, () => { cancelRun(); clearOriginal(); });
+        eventSource.on(event_types.CHAT_CHANGED, () => { cancelRun(); clearOriginal(); });
     } catch { /* 무시 */ }
     let tries = 0;
     const iv = setInterval(() => { addWandItem(); if ($('#ghostpen_wand').length || ++tries > 20) clearInterval(iv); }, 1000);
