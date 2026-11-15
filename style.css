@@ -1,4 +1,4 @@
-/* Ghostpen v0.7.8 */
+/* Ghostpen v0.7.10 */
 /* Ghostpen
  * .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어)
  */
@@ -335,3 +335,21 @@
 /* 기록 탭 */
 .gpen-logbar { margin-bottom: 12px; }
 .gpen-log { margin-bottom: 8px; }
+
+/* [v0.7.10] 설정의 시점 버튼 2x2 (기존 한 줄 규칙보다 뒤에 있어서 이긴다) */
+.gpen-row.gpen-chipgrid { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+/* [v0.7.10] 통합 아이콘: 꾹 누르기 중 글자 선택/기본 메뉴가 뜨지 않게 */
+.gpen-icon[data-mode="unified"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+
+/* [v0.7.10] 통합 아이콘 시점 선택 메뉴 (위치/겹침은 고정, 모양은 낮은 우선순위라 사용자 CSS가 이김) */
+#gpen_pickmenu { position: fixed; z-index: 3000; }
+:where(#gpen_pickmenu) {
+    display: flex; flex-direction: column; gap: 2px; padding: 4px; min-width: 112px;
+    background: var(--SmartThemeBlurTintColor); color: var(--SmartThemeBodyColor);
+    border: 1.5px solid var(--SmartThemeBorderColor); border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+:where(.gpen-pickitem) { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; opacity: 0.6; white-space: nowrap; }
+:where(.gpen-pickitem.gpen-on) { opacity: 1; background: color-mix(in srgb, var(--SmartThemeQuoteColor) 22%, transparent); }
+:where(.gpen-pickitem:hover) { opacity: 1; }
