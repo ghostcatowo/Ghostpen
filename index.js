@@ -1,7 +1,8 @@
-// Ghostpen v0.7.10 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
-// [v0.7.10] 통합 버튼 추가 (시점 4번째 아이콘, 꾹 누르면 시점 선택) / 설정의 시점 버튼을 2x2로 배치
+// Ghostpen v0.7.12 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// [v0.7.12] 시점 4번째 아이콘 이름을 '통합'에서 '올인원'으로 변경 / 아이콘 꾸미기 선택 줄을 위 3개 + 아래 2개 배치로 변경
+// [v0.7.10] 올인원 버튼 추가 (시점 4번째 아이콘, 꾹 누르면 시점 선택) / 설정의 시점 버튼을 2x2로 배치
 const MODULE = 'ghostpen';
-const VERSION = '0.7.10';
+const VERSION = '0.7.12';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -9,12 +10,12 @@ const MODE = {
     first: { label: '1인칭', icon: 'fa-user', flag: 'showFirst' },
     third: { label: '3인칭', icon: 'fa-users', flag: 'showThird' },
     keep:  { label: '고정X', icon: 'fa-ghost', flag: 'showKeep' },
-    unified: { label: '통합', icon: 'fa-layer-group', flag: 'showUnified' }, // [v0.7.10] 임시 이름. 고른 시점(unifiedPick)으로 대필
+    unified: { label: '올인원', icon: 'fa-layer-group', flag: 'showUnified' }, // [v0.7.10] 임시 이름. 고른 시점(unifiedPick)으로 대필
 };
 const DEFAULTS = {
     showFirst: true, showThird: true, showKeep: true,
-    showUnified: false,   // [v0.7.10] 통합 아이콘 (기본 꺼짐: 기존 사용자 화면이 바뀌지 않게)
-    unifiedPick: 'first', // [v0.7.10] 통합 아이콘이 쓸 시점: 'first' | 'third' | 'keep'
+    showUnified: false,   // [v0.7.10] 올인원 아이콘 (기본 꺼짐: 기존 사용자 화면이 바뀌지 않게)
+    unifiedPick: 'first', // [v0.7.10] 올인원 아이콘이 쓸 시점: 'first' | 'third' | 'keep'
     intensity: 'mid',     // weak | mid | strong
     minChars: 500, maxChars: 800,
     maxTokens: 5000,      // 출력 토큰 상한
@@ -271,7 +272,7 @@ async function runGhostpen(mode) {
     const st = S();
     const ta = document.getElementById('send_textarea');
     const rawText = ta.value;
-    const pick = mode === 'unified' ? (PERSPECTIVE[st.unifiedPick] ? st.unifiedPick : 'first') : mode; // [v0.7.10] 통합이면 고른 시점, 아니면 눌린 아이콘의 시점
+    const pick = mode === 'unified' ? (PERSPECTIVE[st.unifiedPick] ? st.unifiedPick : 'first') : mode; // [v0.7.10] 올인원이면 고른 시점, 아니면 눌린 아이콘의 시점
     const { draft: input, request } = splitRequest(rawText);
     const id = ++runCounter;
     const controller = new AbortController();
@@ -478,6 +479,7 @@ let decoOpen = false;
 function decoHtml() {
     const c = ic(decoSel);
     const seg = (attr, v, label, cur) => `<button type="button" class="gpen-btn gpen-seg ${cur === v ? 'gpen-on' : ''}" data-${attr}="${v}"><span>${label}</span></button>`;
+    // [v0.7.12] 선택 줄을 위 3개(1인칭·3인칭·고정X) + 아래 2개(올인원·복원)로 나눠 보여줌 (배치는 CSS .gpen-dselgrid)
     const sels = ICON_KEYS.map(k => seg('dsel', k, iconMeta(k).label, decoSel)).join('');
     const colorRow = (key, label, val) => {
         const set = safeColor(val);
@@ -495,7 +497,7 @@ function decoHtml() {
             <input type="file" accept="image/*" data-dfile style="display:none"></div>`;
     }
     return `
-      <div class="gpen-row">${sels}</div>
+      <div class="gpen-row gpen-dselgrid">${sels}</div>
       <div class="gpen-deco-preview"><div class="gpen-icon" style="${iconStyle(decoSel)}cursor:default">${iconInner(decoSel)}</div></div>
       <div class="gpen-field"><label>모양</label><div class="gpen-row">${seg('dkind', 'default', '기본', c.kind)}${seg('dkind', 'emoji', '이모지', c.kind)}${seg('dkind', 'image', '이미지', c.kind)}</div>${kindBody}</div>
       <div class="gpen-field"><label>크기 (px)</label><div class="gpen-dstep"><button type="button" class="gpen-btn gpen-dstep-btn" data-dd="-1"><i class="fa-solid fa-minus"></i></button><span class="gpen-step-val">${Math.min(64, Math.max(20, Number(c.size) || 32))}</span><button type="button" class="gpen-btn gpen-dstep-btn" data-dd="1"><i class="fa-solid fa-plus"></i></button></div></div>
@@ -505,7 +507,7 @@ function decoHtml() {
       <div class="gpen-row"><button type="button" class="gpen-btn" data-dreset><i class="fa-solid fa-rotate-left"></i><span>이 아이콘 기본값</span></button><button type="button" class="gpen-btn" data-dresetall><i class="fa-solid fa-trash-arrow-up"></i><span>전부 기본값 복원</span></button></div>`;
 }
 
-/* [v0.7.10] 통합 아이콘: 짧게 누르면 대필, 0.5초 이상 꾹 누르면 시점 선택 메뉴 */
+/* [v0.7.10] 올인원 아이콘: 짧게 누르면 대필, 0.5초 이상 꾹 누르면 시점 선택 메뉴 */
 const LONG_PRESS_MS = 500;
 function closePickMenu() { $('#gpen_pickmenu').remove(); $(document).off('.gpenpick'); }
 function openPickMenu(anchor) {
@@ -556,7 +558,7 @@ function buildBar() {
     const icons = $('<div></div>');
     $(`<div class="gpen-icon gpen-restore" title="원문 복원" style="${iconStyle('restore')}">${iconInner('restore')}</div>`).on('click', restoreOriginal).appendTo(icons);
     for (const [k, v] of active) {
-        const title = k === 'unified' ? `${v.label} (${MODE[PERSPECTIVE[st.unifiedPick] ? st.unifiedPick : 'first'].label}) - 꾹 누르면 시점 선택` : v.label; // [v0.7.10] 통합은 현재 시점을 툴팁에 표시
+        const title = k === 'unified' ? `${v.label} (${MODE[PERSPECTIVE[st.unifiedPick] ? st.unifiedPick : 'first'].label}) - 꾹 누르면 시점 선택` : v.label; // [v0.7.10] 올인원은 현재 시점을 툴팁에 표시
         const el = $(`<div class="gpen-icon" data-mode="${k}" title="${title}" style="${iconStyle(k)}">${iconInner(k)}</div>`);
         if (k === 'unified') bindUnifiedPress(el); else el.on('click', () => onIconClick(k));
         el.appendTo(icons);

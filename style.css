@@ -1,4 +1,4 @@
-/* Ghostpen v0.7.11 */
+/* Ghostpen v0.7.12 */
 /* Ghostpen
  * .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어)
  */
@@ -339,10 +339,10 @@
 /* [v0.7.10] 설정의 시점 버튼 2x2 (기존 한 줄 규칙보다 뒤에 있어서 이긴다) */
 .gpen-row.gpen-chipgrid { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
-/* [v0.7.10] 통합 아이콘: 꾹 누르기 중 글자 선택/기본 메뉴가 뜨지 않게 */
+/* [v0.7.10] 올인원 아이콘: 꾹 누르기 중 글자 선택/기본 메뉴가 뜨지 않게 */
 .gpen-icon[data-mode="unified"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 
-/* [v0.7.10] 통합 아이콘 시점 선택 메뉴 (위치/겹침은 고정, 모양은 낮은 우선순위라 사용자 CSS가 이김) */
+/* [v0.7.10] 올인원 아이콘 시점 선택 메뉴 (위치/겹침은 고정, 모양은 낮은 우선순위라 사용자 CSS가 이김) */
 #gpen_pickmenu { position: fixed; z-index: 3000; }
 :where(#gpen_pickmenu) {
     display: flex; flex-direction: column; gap: 2px; padding: 4px; min-width: 112px;
@@ -356,3 +356,12 @@
 
 /* [v0.7.11] 시점 메뉴 글자 정렬: 아이콘마다 폭이 달라 글자 시작 위치가 흔들리던 것을, 아이콘 칸 폭을 같게 해서 줄 맞춤 */
 .gpen-pickitem i { flex: 0 0 auto; width: 1.4em; text-align: center; }
+
+/* [v0.7.12] 아이콘 꾸미기 선택 줄: 위 3개(1인칭·3인칭·고정X)는 각 1/3, 아래 2개(올인원·복원)는 각 1/2로 두 줄의 전체 가로 길이를 맞춤 */
+.gpen-row.gpen-dselgrid { grid-auto-flow: row; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.gpen-dselgrid > .gpen-seg:nth-child(-n+3) { grid-column: span 2; }
+.gpen-dselgrid > .gpen-seg:nth-child(n+4) { grid-column: span 3; }
+
+/* [v0.7.12] 설정의 시점 버튼(2x2): 아이콘 칸 폭을 같게 하고 왼쪽부터 놓아 아이콘·글자 시작 위치를 줄 맞춤 */
+.gpen-row.gpen-chipgrid .gpen-chip { justify-content: flex-start; padding: 0 0 0 18px; }
+.gpen-row.gpen-chipgrid .gpen-chip i { flex: 0 0 auto; width: 1.4em; text-align: center; }
