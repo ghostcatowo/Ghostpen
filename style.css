@@ -312,7 +312,7 @@
 :where(#send_form.gpen-merge) :where(#leftSendForm) { grid-column: 1; grid-row: 1; }
 :where(#send_form.gpen-merge) :where(#ghostpen_bar) { grid-column: 2 / 4; grid-row: 1; min-width: 0; width: auto; margin: 0; flex-wrap: nowrap; gap: 4px; padding: 0 2px; }
 :where(#send_form.gpen-merge) :where(#send_textarea) { grid-column: 1 / 3; grid-row: 2; width: 100%; min-width: 0; }
-:where(#send_form.gpen-merge) :where(#rightSendForm) { grid-column: 3; grid-row: 2; align-self: end; }
+:where(#send_form.gpen-merge) :where(#rightSendForm) { grid-column: 3; grid-row: 2; align-self: center; } /* 따로일 때와 같은 세로 위치 (end → center) */
 
 /* v0.7.1 정렬 (사용자 CSS가 항상 우선) */
 :where(#ghostpen_bar.gpen-al-left) { justify-content: flex-start; }
