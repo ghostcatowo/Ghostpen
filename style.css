@@ -1,4 +1,4 @@
-/* Ghostpen v0.7.9 */
+/* Ghostpen v0.7.8 */
 /* Ghostpen
  * .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어)
  */
@@ -297,28 +297,19 @@
 .gpen-colorfold[open] > summary { margin-bottom: 6px; }
 .gpen-colorfold .gpen-swatch { width: 22px; height: 22px; }
 
-/* v0.7.9 같이: 입력창(#nonQRFormItems)은 건드리지 않고 ST의 flex 배치를 그대로 둔다.
- * 아이콘 줄(#ghostpen_bar)만 오른쪽 버튼 영역(#rightSendForm) 안, 전송 버튼 앞에 들어가며
- * 같이 모드에서만 전체 폭(100%)을 풀고 크기·간격만 조정한다. (따로는 위의 기본 규칙 그대로) */
-#send_form.gpen-merge #ghostpen_bar {
-    flex: 0 0 auto;
-    width: auto;
-    height: auto;
-    min-width: 0;
-    margin: 0;
-    padding: 0 2px;
-    gap: 4px;
-    flex-wrap: nowrap;
-    justify-content: flex-end;
-}
-#send_form.gpen-merge #ghostpen_bar .gpen-icon { width: 30px; height: 30px; font-size: 15px; } /* 아이콘 꾸미기에서 바꾼 크기는 그대로 우선 */
+/* v0.7.6 같이: 윗줄에 [삼줄·마법봉][고펜 아이콘], 아랫줄에 [입력칸][전송] (grid) */
+#send_form.gpen-merge #nonQRFormItems { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; row-gap: 4px; }
+:where(#send_form.gpen-merge) :where(#leftSendForm) { grid-column: 1; grid-row: 1; }
+:where(#send_form.gpen-merge) :where(#ghostpen_bar) { grid-column: 2 / 4; grid-row: 1; min-width: 0; width: auto; margin: 0; flex-wrap: nowrap; gap: 4px; padding: 0 2px; }
+:where(#send_form.gpen-merge) :where(#send_textarea) { grid-column: 1 / 3; grid-row: 2; width: 100%; min-width: 0; }
+:where(#send_form.gpen-merge) :where(#rightSendForm) { grid-column: 3; grid-row: 2; align-self: center; } /* v0.7.7 비행기: 아래(end)로 처지던 것을 따로와 같은 세로 위치로 */
 
 /* v0.7.1 정렬 (사용자 CSS가 항상 우선) */
 :where(#ghostpen_bar.gpen-al-left) { justify-content: flex-start; }
 :where(#ghostpen_bar.gpen-al-center) { justify-content: center; }
 :where(#ghostpen_bar.gpen-al-right) { justify-content: flex-end; }
 
-/* v0.7.9 여백 (v0.7.2~0.7.4에 겹쳐 있던 규칙을 최종 적용값 하나로 정리, 모양은 그대로)
+/* v0.7.8 여백 (v0.7.2~0.7.4에 겹쳐 있던 규칙을 최종 적용값 하나로 정리, 모양은 그대로)
  * 항목 사이 16px / 제목 위 20px·아래 8px / 접이식 안 8px / 중첩 8px */
 .gpen-pane > :first-child { margin-top: 0; }
 .gpen-section-title { margin: 20px 0 8px; }
