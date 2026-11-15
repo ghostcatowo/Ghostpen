@@ -1,8 +1,9 @@
-// Ghostpen v0.7.12 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.13 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// [v0.7.13] 취소 알림(토스트) 3개 삭제 (취소 동작은 그대로) / 이미지 아이콘 끌림 방지 draggable="false" 추가 (CSS는 모든 아이콘에 선택·끌림·iOS 메뉴 방지)
 // [v0.7.12] 시점 4번째 아이콘 이름을 '통합'에서 '올인원'으로 변경 / 아이콘 꾸미기 선택 줄을 위 3개 + 아래 2개 배치로 변경
 // [v0.7.10] 올인원 버튼 추가 (시점 4번째 아이콘, 꾹 누르면 시점 선택) / 설정의 시점 버튼을 2x2로 배치
 const MODULE = 'ghostpen';
-const VERSION = '0.7.12';
+const VERSION = '0.7.13';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -278,11 +279,11 @@ async function runGhostpen(mode) {
     const controller = new AbortController();
     run = { id, controller, mode, cancelled: false, timedOut: false };
     setBusy(mode, true);
-    const onInput = () => { if (run?.id === id && ta.value !== rawText) cancelRun('입력창이 변경되어 대필을 취소해요.'); };
+    const onInput = () => { if (run?.id === id && ta.value !== rawText) cancelRun(); };
     // 전송할 때 ST가 입력창을 코드로 비우면 입력 신호가 안 올 수 있어서, 대필 중에만 0.25초마다 값을 비교한다
     const poll = setInterval(() => {
         if (run?.id !== id) return;
-        if (ta.value !== rawText) cancelRun(ta.value === '' ? '메시지가 전송되어 대필을 취소해요.' : '입력창이 변경되어 대필을 취소해요.');
+        if (ta.value !== rawText) cancelRun(); // [v0.7.13] 알림 없이 취소만
     }, 250);
     const stopWatch = () => { ta.removeEventListener('input', onInput); clearInterval(poll); };
     ta.addEventListener('input', onInput);
@@ -373,11 +374,10 @@ async function runGhostpen(mode) {
     }
 }
 
-function cancelRun(reason) { // 진행 중인 대필을 즉시 취소. reason이 있으면 토스트로 이유를 알림
+function cancelRun() { // 진행 중인 대필을 즉시 취소 ([v0.7.13] 취소 알림(토스트)은 없앰)
     if (!run) return;
     const m = run.mode;
     run.cancelled = true; run.controller.abort(); run = null; setBusy(m, false);
-    if (reason) { try { window.toastr?.info(reason); } catch { /* 무시 */ } }
 }
 function onIconClick(mode) {
     if (run) { if (run.mode === mode) cancelRun(); return; } // 같은 아이콘을 다시 누르면 취소 (알림 없음)
@@ -423,7 +423,7 @@ function iconInner(k, spin = false) {
     const c = ic(k);
     const sz = Math.min(64, Math.max(20, Number(c.size) || 32));
     if (!spin && c.kind === 'emoji' && c.emoji) return `<span class="gpen-emo" style="font-size:${Math.round(sz * 0.55)}px">${esc(c.emoji)}</span>`;
-    if (!spin && c.kind === 'image' && safeSrc(c.img)) return `<img src="${esc(c.img)}" alt="">`;
+    if (!spin && c.kind === 'image' && safeSrc(c.img)) return `<img src="${esc(c.img)}" alt="" draggable="false">`; // [v0.7.13] draggable="false": 꾹 누를 때 이미지가 끌려 나가 터치가 끊기는 것 방지
     const col = c.kind === 'default' && safeColor(c.color) ? `color:${c.color};opacity:1;` : '';
     const fs = sz !== 32 ? `font-size:${Math.round(sz * 0.5)}px;` : '';
     return `<i class="fa-solid ${spin ? 'fa-spinner fa-spin' : iconMeta(k).icon}"${fs || col ? ` style="${fs}${col}"` : ''}></i>`;
@@ -789,10 +789,10 @@ jQuery(() => {
     addDrawer();
     try { // 전송/채팅 변경 시 원문 삭제
         const { eventSource, event_types } = ctx();
-        eventSource.on(event_types.MESSAGE_SENT, () => { cancelRun('메시지가 전송되어 대필을 취소해요.'); clearOriginal(); });
-        eventSource.on(event_types.CHAT_CHANGED, () => { cancelRun('채팅이 변경되어 대필을 취소해요.'); clearOriginal(); });
+        eventSource.on(event_types.MESSAGE_SENT, () => { cancelRun(); clearOriginal(); });
+        eventSource.on(event_types.CHAT_CHANGED, () => { cancelRun(); clearOriginal(); });
     } catch { /* 무시 */ }
-    document.getElementById('send_but')?.addEventListener('click', () => cancelRun('메시지가 전송되어 대필을 취소해요.'), true); // 전송 버튼 (대필 중이 아니면 아무 일도 안 함)
+    document.getElementById('send_but')?.addEventListener('click', () => cancelRun(), true); // 전송 버튼 (대필 중이 아니면 아무 일도 안 함)
     let tries = 0;
     const iv = setInterval(() => { addWandItem(); if ($('#ghostpen_wand').length || ++tries > 20) clearInterval(iv); }, 1000);
 });
