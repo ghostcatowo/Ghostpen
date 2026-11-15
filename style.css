@@ -1,3 +1,4 @@
+/* Ghostpen v0.7.6 */
 /* Ghostpen
  * .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어)
  */
@@ -306,12 +307,12 @@
 .gpen-colorfold[open] > summary { margin-bottom: 6px; }
 .gpen-colorfold .gpen-swatch { width: 22px; height: 22px; }
 
-/* v0.7.0 한 줄: [삼줄·마법봉] [고펜 아이콘] [전송] / 입력칸은 아래 줄 */
-#send_form.gpen-merge #nonQRFormItems { flex-wrap: wrap; align-items: center; }
-#send_form.gpen-merge #leftSendForm { order: 0; }
-:where(#send_form.gpen-merge) :where(#ghostpen_bar) { order: 1; flex: 1 1 0; min-width: 0; width: auto; flex-wrap: nowrap; gap: 4px; padding: 0 2px; }
-#send_form.gpen-merge #rightSendForm { order: 2; flex: 0 0 auto; }
-#send_form.gpen-merge #send_textarea { order: 3; flex: 1 0 100%; width: 100%; }
+/* v0.7.6 같이: 윗줄에 [삼줄·마법봉][고펜 아이콘], 아랫줄에 [입력칸][전송] (grid) */
+#send_form.gpen-merge #nonQRFormItems { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; row-gap: 4px; }
+:where(#send_form.gpen-merge) :where(#leftSendForm) { grid-column: 1; grid-row: 1; }
+:where(#send_form.gpen-merge) :where(#ghostpen_bar) { grid-column: 2 / 4; grid-row: 1; min-width: 0; width: auto; margin: 0; flex-wrap: nowrap; gap: 4px; padding: 0 2px; }
+:where(#send_form.gpen-merge) :where(#send_textarea) { grid-column: 1 / 3; grid-row: 2; width: 100%; min-width: 0; }
+:where(#send_form.gpen-merge) :where(#rightSendForm) { grid-column: 3; grid-row: 2; align-self: end; }
 
 /* v0.7.1 정렬 (사용자 CSS가 항상 우선) */
 :where(#ghostpen_bar.gpen-al-left) { justify-content: flex-start; }

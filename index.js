@@ -1,6 +1,6 @@
-// Ghostpen v0.7.4 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.6 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.4';
+const VERSION = '0.7.6';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -436,12 +436,14 @@ function iconInner(k, spin = false) {
     if (!spin && c.kind === 'emoji' && c.emoji) return `<span class="gpen-emo" style="font-size:${Math.round(sz * 0.55)}px">${esc(c.emoji)}</span>`;
     if (!spin && c.kind === 'image' && safeSrc(c.img)) return `<img src="${esc(c.img)}" alt="">`;
     const col = c.kind === 'default' && safeColor(c.color) ? `color:${c.color};opacity:1;` : '';
-    return `<i class="fa-solid ${spin ? 'fa-spinner fa-spin' : iconMeta(k).icon}" style="font-size:${Math.round(sz * 0.5)}px;${col}"></i>`;
+    const fs = sz !== 32 ? `font-size:${Math.round(sz * 0.5)}px;` : '';
+    return `<i class="fa-solid ${spin ? 'fa-spinner fa-spin' : iconMeta(k).icon}"${fs || col ? ` style="${fs}${col}"` : ''}></i>`;
 }
 function iconStyle(k) {
     const c = ic(k);
     const sz = Math.min(64, Math.max(20, Number(c.size) || 32));
-    let css = `width:${sz}px;height:${sz}px;font-size:${Math.round(sz * 0.5)}px;`;
+    let css = ''; // 바꾼 값만 적용 (기본값이면 인라인 스타일 없음 → 사용자 CSS가 그대로 먹음)
+    if (sz !== 32) css += `width:${sz}px;height:${sz}px;font-size:${Math.round(sz * 0.5)}px;`;
     if (c.kind === 'default' && safeColor(c.color)) css += `color:${c.color};`;
     if (c.shape === 'none') css += 'border:none;background:transparent;';
     else {
