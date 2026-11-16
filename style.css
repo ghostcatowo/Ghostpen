@@ -1,9 +1,7 @@
-/* Ghostpen v0.7.15 */
-/* Ghostpen
- * .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어)
- */
+/* Ghostpen v0.7.18 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 index.js의 VERSION을 같이 고칠 것) */
+/* .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어) */
 
-/* 입력창 위 아이콘 줄 */
+/* 입력창 위 아이콘 줄 (:where 라서 사용자 CSS가 항상 이김) */
 :where(#ghostpen_bar) {
     flex: 0 0 100%;
     width: 100%;
@@ -151,7 +149,7 @@
 }
 
 /* 고급 / 아이콘 꾸미기 */
-.gpen-adv, .gpen-deco, .gpen-ipane { /* [v0.7.15] .gpen-ipane: 아이콘 설정 버튼으로 여는 칸 (이전 .gpen-fold 접이식 대체) */
+.gpen-adv, .gpen-deco, .gpen-ipane { /* .gpen-ipane: 아이콘 설정 버튼으로 여는 칸 */
     margin-bottom: 12px;
     padding: 6px 10px;
     border: 1px solid var(--SmartThemeBorderColor);
@@ -255,7 +253,7 @@
 .gpen-colorrow input[type="color"] { width: 44px; height: 34px; padding: 0; border: 1px solid var(--SmartThemeBorderColor); border-radius: 8px; background: transparent; cursor: pointer; }
 .gpen-deco .gpen-seg, .gpen-ipane .gpen-seg { min-height: 36px; }
 
-/* v0.5.1 */
+/* 기본 아이콘 투명도 (손가락을 올리면 원래 밝기) */
 .gpen-icon i { opacity: 0.8; }
 .gpen-icon:hover i { opacity: 1; }
 
@@ -274,7 +272,7 @@
 .gpen-swatch { width: 28px; height: 28px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 6px; flex: 0 0 auto; }
 .gpen-rgb { width: 60px; min-width: 0; margin: 0; text-align: center; box-sizing: border-box; }
 
-/* v0.5.2 색 슬라이드 바 */
+/* 색 슬라이드 바 */
 .gpen-colorrow { display: flex; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
 .gpen-colortop { display: flex; align-items: center; gap: 10px; }
 .gpen-chrow { display: flex; align-items: center; gap: 10px; }
@@ -287,7 +285,7 @@
 .gpen-rng::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #888; cursor: pointer; }
 .gpen-rgb { width: 62px; flex: 0 0 auto; }
 
-/* v0.5.3 색 접이식 */
+/* 색 접이식 */
 .gpen-colorfold { border: 1px solid var(--SmartThemeBorderColor); border-radius: 8px; padding: 6px 10px; margin: 6px 0; }
 .gpen-colorfold > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; min-height: 34px; }
 .gpen-colorfold > summary::-webkit-details-marker { display: none; }
@@ -297,19 +295,28 @@
 .gpen-colorfold[open] > summary { margin-bottom: 6px; }
 .gpen-colorfold .gpen-swatch { width: 22px; height: 22px; }
 
-/* v0.7.6 같이: 윗줄에 [삼줄·마법봉][고펜 아이콘], 아랫줄에 [입력칸][전송] (grid) */
-#send_form.gpen-merge #nonQRFormItems { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; row-gap: 4px; }
-:where(#send_form.gpen-merge) :where(#leftSendForm) { grid-column: 1; grid-row: 1; }
-:where(#send_form.gpen-merge) :where(#ghostpen_bar) { grid-column: 2 / 4; grid-row: 1; min-width: 0; width: auto; margin: 0; flex-wrap: nowrap; gap: 4px; padding: 0 2px; }
-:where(#send_form.gpen-merge) :where(#send_textarea) { grid-column: 1 / 3; grid-row: 2; width: 100%; min-width: 0; }
-:where(#send_form.gpen-merge) :where(#rightSendForm) { grid-column: 3; grid-row: 2; align-self: center; } /* v0.7.7 비행기: 아래(end)로 처지던 것을 따로와 같은 세로 위치로 */
-
-/* v0.7.1 정렬 (사용자 CSS가 항상 우선) */
+/* 정렬 (:where 라서 사용자 CSS가 항상 우선) */
 :where(#ghostpen_bar.gpen-al-left) { justify-content: flex-start; }
 :where(#ghostpen_bar.gpen-al-center) { justify-content: center; }
 :where(#ghostpen_bar.gpen-al-right) { justify-content: flex-end; }
 
-/* v0.7.8 여백 (v0.7.2~0.7.4에 겹쳐 있던 규칙을 최종 적용값 하나로 정리, 모양은 그대로)
+/* 커스텀: 입력창(#nonQRFormItems)은 건드리지 않고 ST의 flex 배치를 그대로 둔다.
+ * 아이콘 줄만 오른쪽 버튼 영역(#rightSendForm) 안, 전송 버튼 앞에 들어가며 전체 폭(100%)만 풀고 크기·간격을 조정한다.
+ * ST의 "#rightSendForm > div" 크기 규칙을 이겨야 해서 :where 를 쓰지 않는다. */
+#send_form.gpen-custom #ghostpen_bar {
+    flex: 0 0 auto;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    margin: 0;
+    padding: 0 2px;
+    gap: 4px;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+}
+#send_form.gpen-custom #ghostpen_bar .gpen-icon { width: 30px; height: 30px; font-size: 15px; } /* 아이콘 꾸미기에서 바꾼 크기는 인라인 스타일이 이김 */
+
+/* 여백 규칙
  * 항목 사이 16px / 제목 위 20px·아래 8px / 접이식 안 8px / 중첩 8px */
 .gpen-pane > :first-child { margin-top: 0; }
 .gpen-section-title { margin: 20px 0 8px; }
@@ -336,15 +343,14 @@
 .gpen-logbar { margin-bottom: 12px; }
 .gpen-log { margin-bottom: 8px; }
 
-/* [v0.7.10] 설정의 시점 버튼 2x2 (기존 한 줄 규칙보다 뒤에 있어서 이긴다) */
+/* 설정의 시점 버튼 2x2 (기존 한 줄 규칙보다 뒤에 있어서 이긴다) */
 .gpen-row.gpen-chipgrid { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
-/* [v0.7.10] 올인원 아이콘: 꾹 누르기 중 글자 선택/기본 메뉴가 뜨지 않게 */
-/* [v0.7.13] 입력창 모든 아이콘과 그 안쪽 요소(i, img, span): 꾹 눌렀을 때 글자 선택, 이미지 끌림, iOS 기본 메뉴가 뜨지 않게 막음 */
+/* 입력창 모든 아이콘과 그 안쪽 요소(i, img, span): 꾹 눌렀을 때 글자 선택, 이미지 끌림, iOS 기본 메뉴가 뜨지 않게 막음 */
 .gpen-icon, .gpen-icon * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
 .gpen-icon[data-mode="unified"] { touch-action: manipulation; } /* 올인원만 꾹 누르기를 쓰므로 터치 최적화 유지 */
 
-/* [v0.7.10] 올인원 아이콘 시점 선택 메뉴 (위치/겹침은 고정, 모양은 낮은 우선순위라 사용자 CSS가 이김) */
+/* 올인원 아이콘 시점 선택 메뉴 (위치/겹침은 고정, 모양은 낮은 우선순위라 사용자 CSS가 이김) */
 #gpen_pickmenu { position: fixed; z-index: 3000; }
 :where(#gpen_pickmenu) {
     display: flex; flex-direction: column; gap: 2px; padding: 4px; min-width: 112px;
@@ -356,18 +362,18 @@
 :where(.gpen-pickitem.gpen-on) { opacity: 1; background: color-mix(in srgb, var(--SmartThemeQuoteColor) 22%, transparent); }
 :where(.gpen-pickitem:hover) { opacity: 1; }
 
-/* [v0.7.11] 시점 메뉴 글자 정렬: 아이콘마다 폭이 달라 글자 시작 위치가 흔들리던 것을, 아이콘 칸 폭을 같게 해서 줄 맞춤 */
+/* 시점 메뉴 글자 정렬: 아이콘마다 폭이 달라 글자 시작 위치가 흔들리던 것을, 아이콘 칸 폭을 같게 해서 줄 맞춤 */
 .gpen-pickitem i { flex: 0 0 auto; width: 1.4em; text-align: center; }
 
-/* [v0.7.12] 아이콘 꾸미기 선택 줄: 위 3개(1인칭·3인칭·고정X)는 각 1/3, 아래 2개(올인원·복원)는 각 1/2로 두 줄의 전체 가로 길이를 맞춤 */
+/* 아이콘 꾸미기 선택 줄: 위 3개(1인칭·3인칭·고정X)는 각 1/3, 아래 2개(올인원·복원)는 각 1/2로 두 줄의 전체 가로 길이를 맞춤 */
 .gpen-row.gpen-dselgrid { grid-auto-flow: row; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
 .gpen-dselgrid > .gpen-seg:nth-child(-n+3) { grid-column: span 2; }
 .gpen-dselgrid > .gpen-seg:nth-child(n+4) { grid-column: span 3; }
 
-/* [v0.7.12] 설정의 시점 버튼(2x2): 아이콘 칸 폭을 같게 하고 왼쪽부터 놓아 아이콘·글자 시작 위치를 줄 맞춤 */
+/* 설정의 시점 버튼(2x2): 아이콘 칸 폭을 같게 하고 왼쪽부터 놓아 아이콘·글자 시작 위치를 줄 맞춤 */
 .gpen-row.gpen-chipgrid .gpen-chip { justify-content: flex-start; padding: 0 0 0 18px; }
 .gpen-row.gpen-chipgrid .gpen-chip i { flex: 0 0 auto; width: 1.4em; text-align: center; }
 
-/* [v0.7.15] 아이콘 설정 펼침 칸: 위 가로 버튼(위치/정렬/아꾸)에서 고른 칸만 보임. 칸 안쪽 여백은 위아래 12px로 */
+/* 아이콘 설정 펼침 칸: 위 가로 버튼(레이아웃/정렬/아꾸)에서 고른 칸만 보임. 칸 안쪽 여백은 위아래 12px로 */
 .gpen-ipane { padding: 12px; }
 .gpen-ipane[hidden] { display: none; }

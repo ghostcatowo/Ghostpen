@@ -1,11 +1,7 @@
-// Ghostpen v0.7.15 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
-// [v0.7.15] 설정에 '아이콘 설정' 항목 추가: 위치/정렬/아꾸 버튼 3개를 가로 한 줄로 놓고, 누른 것만 아래에 펼침 (접이식 3줄 대신)
-// [v0.7.14] 설정의 위치/정렬을 각각 접이식으로 분리, '아이콘 꾸미기'를 '아꾸'로 변경 / 굽은 큰따옴표(“ ”) 대사도 큰따옴표처럼 유지(프롬프트 + 변경 확인). 작은따옴표는 제외
-// [v0.7.13] 취소 알림(토스트) 3개 삭제 (취소 동작은 그대로) / 이미지 아이콘 끌림 방지 draggable="false" 추가 (CSS는 모든 아이콘에 선택·끌림·iOS 메뉴 방지)
-// [v0.7.12] 시점 4번째 아이콘 이름을 '통합'에서 '올인원'으로 변경 / 아이콘 꾸미기 선택 줄을 위 3개 + 아래 2개 배치로 변경
-// [v0.7.10] 올인원 버튼 추가 (시점 4번째 아이콘, 꾹 누르면 시점 선택) / 설정의 시점 버튼을 2x2로 배치
+// Ghostpen v0.7.18 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.15';
+const VERSION = '0.7.18';
+const LAYOUTS = ['row', 'custom']; // 레이아웃 값 목록: row 기본 / custom 커스텀 (목록에 없는 값은 'row'로 처리). 레이아웃을 늘릴 때 여기에 추가
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -13,12 +9,12 @@ const MODE = {
     first: { label: '1인칭', icon: 'fa-user', flag: 'showFirst' },
     third: { label: '3인칭', icon: 'fa-users', flag: 'showThird' },
     keep:  { label: '고정X', icon: 'fa-ghost', flag: 'showKeep' },
-    unified: { label: '올인원', icon: 'fa-layer-group', flag: 'showUnified' }, // [v0.7.10] 임시 이름. 고른 시점(unifiedPick)으로 대필
+    unified: { label: '올인원', icon: 'fa-layer-group', flag: 'showUnified' }, // 고른 시점(unifiedPick)으로 대필
 };
 const DEFAULTS = {
     showFirst: true, showThird: true, showKeep: true,
-    showUnified: false,   // [v0.7.10] 올인원 아이콘 (기본 꺼짐: 기존 사용자 화면이 바뀌지 않게)
-    unifiedPick: 'first', // [v0.7.10] 올인원 아이콘이 쓸 시점: 'first' | 'third' | 'keep'
+    showUnified: false,
+    unifiedPick: 'first',
     intensity: 'mid',     // weak | mid | strong
     minChars: 500, maxChars: 800,
     maxTokens: 5000,      // 출력 토큰 상한
@@ -28,7 +24,7 @@ const DEFAULTS = {
     logs: [],
     icons: {},            // 아이콘 꾸미기 (바꾼 것만 저장)
     align: 'right',       // 아이콘 줄 정렬: 'left' | 'center' | 'right'
-    place: 'row',         // 'row' 입력창 위 별도 줄(기본) / 'merge' 삼줄·마법봉·전송과 한 줄
+    place: 'row',         // 아이콘 줄 레이아웃 (지금은 'row' 하나: 입력창 위 별도 줄)
 };
 const MAX_LOGS = 20;
 let curTab = 'set';
@@ -49,6 +45,7 @@ function S() {
         else if (st.minWords && st.maxWords) { st.minChars = Math.round(st.minWords * 4 / 50) * 50; st.maxChars = Math.round(st.maxWords * 4 / 50) * 50; }
     }
     for (const k of Object.keys(DEFAULTS)) if (st[k] === undefined) st[k] = structuredClone(DEFAULTS[k]);
+    if (!LAYOUTS.includes(st.place)) st.place = 'row'; // 없어진 레이아웃 값은 기본으로
     if (st.maxTokens === 4096) st.maxTokens = 5000; // 이전 기본값 이전
     return st;
 }
@@ -198,7 +195,7 @@ const maskSecrets = t => String(t ?? '')
 const deviceInfo = () => (navigator.userAgent.match(/Android|iPhone|iPad|Windows|Macintosh|Linux/) || ['기기 미상'])[0];
 // 큰따옴표 안의 내용만 보존 대상
 function extractQuoted(text) {
-    return text.match(/"[^"\n]+"|“[^”\n]+”/g) || []; // [v0.7.14] 굽은 큰따옴표(“ ”) 대사도 검사 (작은따옴표는 제외)
+    return text.match(/"[^"\n]+"|“[^”\n]+”/g) || [];
 }
 
 function explainError(net, detail) {
@@ -275,7 +272,7 @@ async function runGhostpen(mode) {
     const st = S();
     const ta = document.getElementById('send_textarea');
     const rawText = ta.value;
-    const pick = mode === 'unified' ? (PERSPECTIVE[st.unifiedPick] ? st.unifiedPick : 'first') : mode; // [v0.7.10] 올인원이면 고른 시점, 아니면 눌린 아이콘의 시점
+    const pick = mode === 'unified' ? (PERSPECTIVE[st.unifiedPick] ? st.unifiedPick : 'first') : mode;
     const { draft: input, request } = splitRequest(rawText);
     const id = ++runCounter;
     const controller = new AbortController();
@@ -285,7 +282,7 @@ async function runGhostpen(mode) {
     // 전송할 때 ST가 입력창을 코드로 비우면 입력 신호가 안 올 수 있어서, 대필 중에만 0.25초마다 값을 비교한다
     const poll = setInterval(() => {
         if (run?.id !== id) return;
-        if (ta.value !== rawText) cancelRun(); // [v0.7.13] 알림 없이 취소만
+        if (ta.value !== rawText) cancelRun();
     }, 250);
     const stopWatch = () => { ta.removeEventListener('input', onInput); clearInterval(poll); };
     ta.addEventListener('input', onInput);
@@ -302,7 +299,7 @@ async function runGhostpen(mode) {
     const timer = setTimeout(() => { if (run?.id === id) run.timedOut = true; controller.abort(); }, Math.max(10, st.timeoutSec) * 1000);
     try {
         if (conn.missing) throw new Error('선택한 연결 프로필을 찾을 수 없어요. 프로필이 삭제됐을 수 있어요. 설정에서 다시 고르거나 "선택 안 함"으로 바꿔 주세요.');
-        const messages = buildMessages(input, pick, st, request); // [v0.7.10] mode 대신 pick
+        const messages = buildMessages(input, pick, st, request);
         const maxTokens = Math.max(256, Number(st.maxTokens) || DEFAULTS.maxTokens);
         log.request = `메시지 ${messages.length}개 / 시스템 ${messages[0].content.length}자 / 사용자 ${messages[1].content.length}자 / 최대 출력 ${maxTokens}`;
 
@@ -376,7 +373,7 @@ async function runGhostpen(mode) {
     }
 }
 
-function cancelRun() { // 진행 중인 대필을 즉시 취소 ([v0.7.13] 취소 알림(토스트)은 없앰)
+function cancelRun() { // 진행 중인 대필을 즉시 취소 (알림 없음)
     if (!run) return;
     const m = run.mode;
     run.cancelled = true; run.controller.abort(); run = null; setBusy(m, false);
@@ -413,7 +410,7 @@ function clearOriginal() { lastOriginal = null; updateRestoreUI(); }
 
 
 /* 아이콘 꾸미기 */
-const ICON_KEYS = ['first', 'third', 'keep', 'unified', 'restore']; // [v0.7.10] unified 추가
+const ICON_KEYS = ['first', 'third', 'keep', 'unified', 'restore'];
 const ICON_DEF = { kind: 'default', emoji: '', img: '', size: 32, color: '', bcolor: '', shape: 'default' };
 const SHAPES = { default: '기본', round: '원', square: '네모', none: '없음' };
 const iconMeta = k => k === 'restore' ? { label: '복원', icon: 'fa-rotate-left' } : MODE[k];
@@ -425,7 +422,7 @@ function iconInner(k, spin = false) {
     const c = ic(k);
     const sz = Math.min(64, Math.max(20, Number(c.size) || 32));
     if (!spin && c.kind === 'emoji' && c.emoji) return `<span class="gpen-emo" style="font-size:${Math.round(sz * 0.55)}px">${esc(c.emoji)}</span>`;
-    if (!spin && c.kind === 'image' && safeSrc(c.img)) return `<img src="${esc(c.img)}" alt="" draggable="false">`; // [v0.7.13] draggable="false": 꾹 누를 때 이미지가 끌려 나가 터치가 끊기는 것 방지
+    if (!spin && c.kind === 'image' && safeSrc(c.img)) return `<img src="${esc(c.img)}" alt="" draggable="false">`; // draggable="false": 꾹 누를 때 이미지가 끌려 나가 터치가 끊기는 것 방지
     const col = c.kind === 'default' && safeColor(c.color) ? `color:${c.color};opacity:1;` : '';
     const fs = sz !== 32 ? `font-size:${Math.round(sz * 0.5)}px;` : '';
     return `<i class="fa-solid ${spin ? 'fa-spinner fa-spin' : iconMeta(k).icon}"${fs || col ? ` style="${fs}${col}"` : ''}></i>`;
@@ -477,11 +474,11 @@ function themeRGB(cssVar) { // 테마 기본색을 RGB로 읽기
 }
 const decoColorOpen = {};
 let decoSel = 'first';
-let iconPane = ''; // [v0.7.15] 아이콘 설정에서 열린 칸: '' (모두 닫힘) | 'place' | 'align' | 'deco'
+let iconPane = ''; // 아이콘 설정에서 열린 칸: '' (모두 닫힘) | 'place' | 'align' | 'deco'
 function decoHtml() {
     const c = ic(decoSel);
     const seg = (attr, v, label, cur) => `<button type="button" class="gpen-btn gpen-seg ${cur === v ? 'gpen-on' : ''}" data-${attr}="${v}"><span>${label}</span></button>`;
-    // [v0.7.12] 선택 줄을 위 3개(1인칭·3인칭·고정X) + 아래 2개(올인원·복원)로 나눠 보여줌 (배치는 CSS .gpen-dselgrid)
+    // 선택 줄: 위 3개(1인칭·3인칭·고정X) + 아래 2개(올인원·복원), 배치는 CSS .gpen-dselgrid
     const sels = ICON_KEYS.map(k => seg('dsel', k, iconMeta(k).label, decoSel)).join('');
     const colorRow = (key, label, val) => {
         const set = safeColor(val);
@@ -509,7 +506,7 @@ function decoHtml() {
       <div class="gpen-row"><button type="button" class="gpen-btn" data-dreset><i class="fa-solid fa-rotate-left"></i><span>이 아이콘 기본값</span></button><button type="button" class="gpen-btn" data-dresetall><i class="fa-solid fa-trash-arrow-up"></i><span>전부 기본값 복원</span></button></div>`;
 }
 
-/* [v0.7.10] 올인원 아이콘: 짧게 누르면 대필, 0.5초 이상 꾹 누르면 시점 선택 메뉴 */
+/* 올인원 아이콘: 짧게 누르면 대필, 0.5초 이상 꾹 누르면 시점 선택 메뉴 */
 const LONG_PRESS_MS = 500;
 function closePickMenu() { $('#gpen_pickmenu').remove(); $(document).off('.gpenpick'); }
 function openPickMenu(anchor) {
@@ -547,7 +544,6 @@ function bindUnifiedPress(el) {
 
 /* UI */
 function buildBar() {
-    $('#send_form').removeClass('gpen-inline gpen-merge');
     const st = S();
     let bar = $('#ghostpen_bar');
     bar.children('.gpen-icon').remove(); // 우리 아이콘만 교체 (다른 확장이 줄 안에 붙인 것은 지우지 않음)
@@ -560,19 +556,21 @@ function buildBar() {
     const icons = $('<div></div>');
     $(`<div class="gpen-icon gpen-restore" title="원문 복원" style="${iconStyle('restore')}">${iconInner('restore')}</div>`).on('click', restoreOriginal).appendTo(icons);
     for (const [k, v] of active) {
-        const title = k === 'unified' ? `${v.label} (${MODE[PERSPECTIVE[st.unifiedPick] ? st.unifiedPick : 'first'].label}) - 꾹 누르면 시점 선택` : v.label; // [v0.7.10] 올인원은 현재 시점을 툴팁에 표시
+        const title = k === 'unified' ? `${v.label} (${MODE[PERSPECTIVE[st.unifiedPick] ? st.unifiedPick : 'first'].label}) - 꾹 누르면 시점 선택` : v.label;
         const el = $(`<div class="gpen-icon" data-mode="${k}" title="${title}" style="${iconStyle(k)}">${iconInner(k)}</div>`);
         if (k === 'unified') bindUnifiedPress(el); else el.on('click', () => onIconClick(k));
         el.appendTo(icons);
     }
     bar.prepend(icons.children());
     bar.removeClass('gpen-al-left gpen-al-center gpen-al-right').addClass(`gpen-al-${alignOf(st)}`);
+    $('#send_form').removeClass('gpen-custom'); // 레이아웃을 늘릴 때 새 클래스도 여기서 먼저 지울 것
     const rightForm = $('#rightSendForm');
     const nonQR = $('#nonQRFormItems');
-    if (st.place === 'merge' && rightForm.length) { // 같이: 입력창 묶음 안 (전송 버튼 앞)
-        rightForm.before(bar);
-        $('#send_form').addClass('gpen-merge');
-    } else if (nonQR.length) nonQR.before(bar); else $('#send_form').prepend(bar); // 따로: 입력창 위 별도 줄
+    if (st.place === 'custom' && rightForm.length) { // 커스텀: 오른쪽 버튼 영역 안, 전송 버튼 바로 앞 (입력창 구조는 건드리지 않음)
+        const sendBut = $('#send_but');
+        if (sendBut.length && sendBut.parent().is(rightForm)) sendBut.before(bar); else rightForm.prepend(bar);
+        $('#send_form').addClass('gpen-custom');
+    } else if (nonQR.length) nonQR.before(bar); else $('#send_form').prepend(bar); // 기본: 입력창 위 별도 줄
     if (run) setBusy(run.mode, true); // 대필 중에 아이콘이 다시 그려져도 취소할 수 있게 상태 복원
     updateRestoreUI();
 }
@@ -609,8 +607,8 @@ function renderPanel(root) {
           <div class="gpen-section-title">아이콘</div>
           <div class="gpen-row gpen-chipgrid">${chip('first')}${chip('third')}${chip('keep')}${chip('unified')}</div>
           <div class="gpen-section-title">아이콘 설정</div>
-          <div class="gpen-row">${[['place', '위치'], ['align', '정렬'], ['deco', '아꾸']].map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
-          <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row"><button type="button" class="gpen-btn gpen-seg ${st.place !== 'merge' ? 'gpen-on' : ''}" data-dplace="row"><span>따로</span></button><button type="button" class="gpen-btn gpen-seg ${st.place === 'merge' ? 'gpen-on' : ''}" data-dplace="merge"><span>같이</span></button></div></div>
+          <div class="gpen-row">${[['place', '레이아웃'], ['align', '정렬'], ['deco', '아꾸']].filter(([k]) => !(k === 'align' && st.place === 'custom')).map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
+          <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row"><button type="button" class="gpen-btn gpen-seg ${st.place === 'row' ? 'gpen-on' : ''}" data-dplace="row"><span>기본</span></button><button type="button" class="gpen-btn gpen-seg ${st.place === 'custom' ? 'gpen-on' : ''}" data-dplace="custom"><span>커스텀</span></button></div></div>
           <div class="gpen-ipane" data-ipane-body="align" ${iconPane === 'align' ? '' : 'hidden'}><div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>
           <div class="gpen-ipane" data-ipane-body="deco" ${iconPane === 'deco' ? '' : 'hidden'}><div class="gpen-deco-body">${decoHtml()}</div></div>
 
@@ -682,7 +680,7 @@ function renderPanel(root) {
     const refreshDeco = () => root.find('.gpen-deco-body').html(decoHtml());
     const refreshPreview = () => root.find('.gpen-deco-preview .gpen-icon').attr('style', iconStyle(decoSel) + 'cursor:default').html(iconInner(decoSel));
     const warn = msg => { try { window.toastr?.warning(msg); } catch { /* 무시 */ } };
-    root.on('click.gpen', '[data-ipane]', function () { // [v0.7.15] 아이콘 설정: 누른 칸만 열고, 열린 칸을 다시 누르면 닫음
+    root.on('click.gpen', '[data-ipane]', function () { // 누른 칸만 열고, 열린 칸을 다시 누르면 닫음
         const k = $(this).attr('data-ipane');
         iconPane = iconPane === k ? '' : k;
         root.find('[data-ipane]').each(function () { $(this).toggleClass('gpen-on', $(this).attr('data-ipane') === iconPane); });
@@ -691,7 +689,10 @@ function renderPanel(root) {
     root.on('click.gpen', '.gpen-colorfold > summary', function () { const d = $(this).parent(); decoColorOpen[d.data('k')] = !d.prop('open'); });
     root.on('click.gpen', '[data-dplace]', function () {
         S().place = $(this).data('dplace'); save(); buildBar();
-        root.find('[data-dplace]').each(function () { $(this).toggleClass('gpen-on', $(this).data('dplace') === (S().place === 'merge' ? 'merge' : 'row')); });
+        root.find('[data-dplace]').each(function () { $(this).toggleClass('gpen-on', $(this).data('dplace') === S().place); });
+        if (S().place === 'custom' && iconPane === 'align') iconPane = ''; // 커스텀은 정렬이 의미 없어서 정렬 칸을 숨김
+        root.find('[data-ipane="align"]').prop('hidden', S().place === 'custom');
+        root.find('[data-ipane-body="align"]').prop('hidden', iconPane !== 'align');
     });
     root.on('click.gpen', '[data-dalign]', function () {
         S().align = $(this).data('dalign'); save(); buildBar();
