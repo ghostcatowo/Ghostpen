@@ -1,6 +1,10 @@
-// Ghostpen v0.7.13 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.14 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// [v0.7.14] 설정의 위치/정렬을 각각 접이식으로 분리, '아이콘 꾸미기'를 '아꾸'로 변경 / 굽은 큰따옴표(“ ”) 대사도 큰따옴표처럼 유지(프롬프트 + 변경 확인). 작은따옴표는 제외
+// [v0.7.13] 취소 알림(토스트) 3개 삭제 (취소 동작은 그대로) / 이미지 아이콘 끌림 방지 draggable="false" 추가 (CSS는 모든 아이콘에 선택·끌림·iOS 메뉴 방지)
+// [v0.7.12] 시점 4번째 아이콘 이름을 '통합'에서 '올인원'으로 변경 / 아이콘 꾸미기 선택 줄을 위 3개 + 아래 2개 배치로 변경
+// [v0.7.10] 올인원 버튼 추가 (시점 4번째 아이콘, 꾹 누르면 시점 선택) / 설정의 시점 버튼을 2x2로 배치
 const MODULE = 'ghostpen';
-const VERSION = '0.7.13';
+const VERSION = '0.7.14';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -63,8 +67,8 @@ const SYSTEM_PROMPT = [
     `- If the draft is empty, [Empty draft] applies before [Rules].`,
     ``,
     `[Rules]`,
-    `- Reflect every action in the draft, and every line of dialogue inside double quotes (" "), in the original order, without omitting any. Do not change their content, order, meaning, or cause-and-effect.`,
-    `- Keep every line of dialogue inside double quotes (" ") exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing.`,
+    `- Reflect every action in the draft, and every line of dialogue inside double quotes (" ") or curly double quotes (“ ”), in the original order, without omitting any. Do not change their content, order, meaning, or cause-and-effect.`,
+    `- Keep every line of dialogue inside double quotes (" ") or curly double quotes (“ ”) exactly as it appears in the draft. Do not change or drop any word, punctuation mark, or spacing.`,
     `- Do not add new dialogue, events, characters, or results that are not in the draft.`,
     `- Use only what is in the draft for the dialogue, actions, reactions, emotions, and sensations of {{char}} and NPCs.`,
     ``,
@@ -78,7 +82,7 @@ const SYSTEM_PROMPT = [
     ``,
     `[Description]`,
     `- The amount and depth of description follow the selected intensity.`,
-    `- Fix repeated information, emotions, words, and narration, spelling and spacing errors and other grammar errors, and awkward sentence connections. However, keep dialogue inside double quotes, and any part the draft explicitly says was written that way on purpose, exactly as it is.`,
+    `- Fix repeated information, emotions, words, and narration, spelling and spacing errors and other grammar errors, and awkward sentence connections. However, keep dialogue inside double or curly double quotes, and any part the draft explicitly says was written that way on purpose, exactly as it is.`,
     `- Describe {{user}}'s emotions, inner thoughts, and sensations only when the draft and the context support them and the selected point of view allows them.`,
     `- Make the draft concrete in line with the existing context. For a place that has already appeared, you may add light, sound, temperature, and atmosphere that suit the scene, but do not invent appearance, belongings, backstory, or new objects or places that the context does not contain.`,
     `- Use the character description, the persona, and the recent chat only to understand the context. Do not copy or summarize them, and do not retell what has already happened.`,
@@ -88,20 +92,20 @@ const SYSTEM_PROMPT = [
     `[Output]`,
     `- Output only the finished passage. Do not add reasoning, information blocks, or the like.`,
     `- Write in the same language as the draft. If the draft is empty, write in Korean.`,
-    `- End any narration you newly write with a complete sentence. Dialogue inside double quotes stays exactly as in the draft, even if the sentence is unfinished.`,
+    `- End any narration you newly write with a complete sentence. Dialogue inside double or curly double quotes stays exactly as in the draft, even if the sentence is unfinished.`,
     `- Even when you restructure sentences and paragraphs, separate dialogue and narration with line breaks so they do not run together on one line. Split narration into paragraphs at points where the action, gaze, emotion, or setting shifts, and do not pack several different flows into one paragraph.`,
-    `- Before you output, check that the dialogue inside double quotes matches the draft and that there are no actions, reactions, emotions, or sensations of {{char}} or NPCs that are not in the draft. If anything is off, fix it.`,
+    `- Before you output, check that the dialogue inside double or curly double quotes matches the draft and that there are no actions, reactions, emotions, or sensations of {{char}} or NPCs that are not in the draft. If anything is off, fix it.`,
 ].join('\n');
 
 const PERSPECTIVE = {
     first: [
         `[Point of view: first person]`,
-        `- Rewrite all narration outside double quotes from {{user}}'s first-person point of view.`,
+        `- Rewrite all narration outside double or curly double quotes from {{user}}'s first-person point of view.`,
         `- Do not narrate other characters' inner thoughts or sensations.`,
     ].join('\n'),
     third: [
         `[Point of view: third person]`,
-        `- Write all narration outside double quotes in third person.`,
+        `- Write all narration outside double or curly double quotes in third person.`,
         `- Do not lock the point of view to any one character.`,
         `- If there is no clue for judging the point of view, narrate centered on externally observable actions, gestures, sounds, and space.`,
         `- Narrate other characters' inner thoughts or sensations only if they are in the draft.`,
@@ -118,7 +122,7 @@ const PERSPECTIVE = {
 const INTENSITY = {
     weak: [
         `[Intensity: Light]`,
-        `- Keep the draft's wording. However, fix spelling and spacing errors in narration outside double quotes.`,
+        `- Keep the draft's wording. However, fix spelling and spacing errors in narration outside double or curly double quotes.`,
         `- Supplement the process, sensation, and setting of actions only a little.`,
         `- Describe emotions only to the extent the draft shows them.`,
         `- Close the passage in one or two sentences.`,
@@ -193,7 +197,7 @@ const maskSecrets = t => String(t ?? '')
 const deviceInfo = () => (navigator.userAgent.match(/Android|iPhone|iPad|Windows|Macintosh|Linux/) || ['기기 미상'])[0];
 // 큰따옴표 안의 내용만 보존 대상
 function extractQuoted(text) {
-    return text.match(/"[^"\n]+"/g) || [];
+    return text.match(/"[^"\n]+"|“[^”\n]+”/g) || []; // [v0.7.14] 굽은 큰따옴표(“ ”) 대사도 검사 (작은따옴표는 제외)
 }
 
 function explainError(net, detail) {
@@ -473,6 +477,7 @@ function themeRGB(cssVar) { // 테마 기본색을 RGB로 읽기
 const decoColorOpen = {};
 let decoSel = 'first';
 let decoOpen = false;
+let placeOpen = false, alignOpen = false; // [v0.7.14] 위치/정렬 접이식 열림 상태
 function decoHtml() {
     const c = ic(decoSel);
     const seg = (attr, v, label, cur) => `<button type="button" class="gpen-btn gpen-seg ${cur === v ? 'gpen-on' : ''}" data-${attr}="${v}"><span>${label}</span></button>`;
@@ -603,12 +608,16 @@ function renderPanel(root) {
 
           <div class="gpen-section-title">아이콘</div>
           <div class="gpen-row gpen-chipgrid">${chip('first')}${chip('third')}${chip('keep')}${chip('unified')}</div>
-          <div class="gpen-field"><label>위치</label>
-            <div class="gpen-row"><button type="button" class="gpen-btn gpen-seg ${st.place !== 'merge' ? 'gpen-on' : ''}" data-dplace="row"><span>따로</span></button><button type="button" class="gpen-btn gpen-seg ${st.place === 'merge' ? 'gpen-on' : ''}" data-dplace="merge"><span>같이</span></button></div></div>
-          <div class="gpen-field"><label>정렬</label>
-            <div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>
-          <details class="gpen-deco" ${decoOpen ? 'open' : ''}>
-            <summary>아이콘 꾸미기</summary>
+          <details class="gpen-fold" data-fold="place" ${placeOpen ? 'open' : ''}>
+<summary>위치</summary>
+<div class="gpen-row"><button type="button" class="gpen-btn gpen-seg ${st.place !== 'merge' ? 'gpen-on' : ''}" data-dplace="row"><span>따로</span></button><button type="button" class="gpen-btn gpen-seg ${st.place === 'merge' ? 'gpen-on' : ''}" data-dplace="merge"><span>같이</span></button></div>
+</details>
+<details class="gpen-fold" data-fold="align" ${alignOpen ? 'open' : ''}>
+<summary>정렬</summary>
+<div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div>
+</details>
+<details class="gpen-deco" ${decoOpen ? 'open' : ''}>
+            <summary>아꾸</summary>
             <div class="gpen-deco-body">${decoHtml()}</div>
           </details>
 
@@ -681,6 +690,7 @@ function renderPanel(root) {
     const refreshPreview = () => root.find('.gpen-deco-preview .gpen-icon').attr('style', iconStyle(decoSel) + 'cursor:default').html(iconInner(decoSel));
     const warn = msg => { try { window.toastr?.warning(msg); } catch { /* 무시 */ } };
     root.on('click.gpen', '.gpen-deco > summary', function () { decoOpen = !$(this).parent().prop('open'); });
+    root.on('click.gpen', '.gpen-fold > summary', function () { const d = $(this).parent(), open = !d.prop('open'); if (d.data('fold') === 'place') placeOpen = open; else alignOpen = open; }); // [v0.7.14] 위치/정렬 열림 상태 기억
     root.on('click.gpen', '.gpen-colorfold > summary', function () { const d = $(this).parent(); decoColorOpen[d.data('k')] = !d.prop('open'); });
     root.on('click.gpen', '[data-dplace]', function () {
         S().place = $(this).data('dplace'); save(); buildBar();

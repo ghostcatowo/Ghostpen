@@ -1,4 +1,4 @@
-/* Ghostpen v0.7.13 */
+/* Ghostpen v0.7.14 */
 /* Ghostpen
  * .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어)
  */
@@ -151,14 +151,14 @@
 }
 
 /* 고급 / 아이콘 꾸미기 */
-.gpen-adv, .gpen-deco {
+.gpen-adv, .gpen-deco, .gpen-fold { /* [v0.7.14] .gpen-fold 추가 */
     margin-bottom: 12px;
     padding: 6px 10px;
     border: 1px solid var(--SmartThemeBorderColor);
     border-radius: 8px;
 }
 
-.gpen-adv > summary, .gpen-deco > summary {
+.gpen-adv > summary, .gpen-deco > summary, .gpen-fold > summary {
     min-height: 30px;
     display: flex;
     align-items: center;
@@ -166,7 +166,7 @@
     opacity: 0.85;
 }
 
-.gpen-adv[open] > summary, .gpen-deco[open] > summary { margin-bottom: 8px; }
+.gpen-adv[open] > summary, .gpen-deco[open] > summary, .gpen-fold[open] > summary { margin-bottom: 8px; }
 
 /* 숫자 조절 */
 .gpen-step, .gpen-dstep {
@@ -253,7 +253,7 @@
 /* 아이콘 꾸미기 */
 .gpen-colorrow { display: flex; align-items: center; gap: 10px; }
 .gpen-colorrow input[type="color"] { width: 44px; height: 34px; padding: 0; border: 1px solid var(--SmartThemeBorderColor); border-radius: 8px; background: transparent; cursor: pointer; }
-.gpen-deco .gpen-seg { min-height: 36px; }
+.gpen-deco .gpen-seg, .gpen-fold .gpen-seg { min-height: 36px; }
 
 /* v0.5.1 */
 .gpen-icon i { opacity: 0.8; }
@@ -313,12 +313,12 @@
  * 항목 사이 16px / 제목 위 20px·아래 8px / 접이식 안 8px / 중첩 8px */
 .gpen-pane > :first-child { margin-top: 0; }
 .gpen-section-title { margin: 20px 0 8px; }
-.gpen-row, .gpen-field, .gpen-adv, .gpen-deco, .gpen-colorfold { margin: 0 0 16px; }
+.gpen-row, .gpen-field, .gpen-adv, .gpen-deco, .gpen-fold, .gpen-colorfold { margin: 0 0 16px; }
 .gpen-field { gap: 6px; }
 .gpen-hint { margin: -8px 0 16px; }
-.gpen-adv, .gpen-deco, .gpen-colorfold { padding: 4px 12px 8px; }
-.gpen-adv > summary, .gpen-deco > summary, .gpen-colorfold > summary { min-height: 34px; }
-.gpen-adv[open] > summary, .gpen-deco[open] > summary, .gpen-colorfold[open] > summary { margin-bottom: 8px; }
+.gpen-adv, .gpen-deco, .gpen-fold, .gpen-colorfold { padding: 4px 12px 8px; }
+.gpen-adv > summary, .gpen-deco > summary, .gpen-fold > summary, .gpen-colorfold > summary { min-height: 34px; }
+.gpen-adv[open] > summary, .gpen-deco[open] > summary, .gpen-fold[open] > summary, .gpen-colorfold[open] > summary { margin-bottom: 8px; }
 
 /* 필드 안 줄은 필드가 간격을 담당 / 필드 속 필드(이미지 주소 등)는 8px */
 .gpen-field > .gpen-row, .gpen-field > .gpen-step, .gpen-field > .gpen-dstep { margin-bottom: 0; }
@@ -330,7 +330,7 @@
 .gpen-deco-body .gpen-colorfold { margin: 0 0 16px; }
 
 /* 접이식 안의 마지막 항목은 아래 여백 없음 */
-.gpen-adv > :last-child, .gpen-deco-body > :last-child, .gpen-colorrow > :last-child { margin-bottom: 0; }
+.gpen-adv > :last-child, .gpen-fold > :last-child, .gpen-deco-body > :last-child, .gpen-colorrow > :last-child { margin-bottom: 0; }
 
 /* 기록 탭 */
 .gpen-logbar { margin-bottom: 12px; }
