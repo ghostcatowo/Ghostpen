@@ -1,7 +1,7 @@
-// Ghostpen v0.7.18 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.19 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.18';
-const LAYOUTS = ['row', 'custom']; // 레이아웃 값 목록: row 기본 / custom 커스텀 (목록에 없는 값은 'row'로 처리). 레이아웃을 늘릴 때 여기에 추가
+const VERSION = '0.7.19';
+const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -563,13 +563,16 @@ function buildBar() {
     }
     bar.prepend(icons.children());
     bar.removeClass('gpen-al-left gpen-al-center gpen-al-right').addClass(`gpen-al-${alignOf(st)}`);
-    $('#send_form').removeClass('gpen-custom'); // 레이아웃을 늘릴 때 새 클래스도 여기서 먼저 지울 것
+    $('#send_form').removeClass('gpen-custom gpen-ded1 gpen-ded2'); // 레이아웃을 늘릴 때 새 클래스도 여기서 먼저 지울 것
     const rightForm = $('#rightSendForm');
     const nonQR = $('#nonQRFormItems');
     if (st.place === 'custom' && rightForm.length) { // 커스텀: 오른쪽 버튼 영역 안, 전송 버튼 바로 앞 (입력창 구조는 건드리지 않음)
         const sendBut = $('#send_but');
         if (sendBut.length && sendBut.parent().is(rightForm)) sendBut.before(bar); else rightForm.prepend(bar);
         $('#send_form').addClass('gpen-custom');
+    } else if ((st.place === 'ded1' || st.place === 'ded2') && rightForm.length) { // 전용1·2: 입력창 묶음 안, 오른쪽 묶음 바로 앞 (배치는 CSS가 담당)
+        rightForm.before(bar);
+        $('#send_form').addClass(`gpen-${st.place}`);
     } else if (nonQR.length) nonQR.before(bar); else $('#send_form').prepend(bar); // 기본: 입력창 위 별도 줄
     if (run) setBusy(run.mode, true); // 대필 중에 아이콘이 다시 그려져도 취소할 수 있게 상태 복원
     updateRestoreUI();
@@ -607,8 +610,8 @@ function renderPanel(root) {
           <div class="gpen-section-title">아이콘</div>
           <div class="gpen-row gpen-chipgrid">${chip('first')}${chip('third')}${chip('keep')}${chip('unified')}</div>
           <div class="gpen-section-title">아이콘 설정</div>
-          <div class="gpen-row">${[['place', '레이아웃'], ['align', '정렬'], ['deco', '아꾸']].filter(([k]) => !(k === 'align' && st.place === 'custom')).map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
-          <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row"><button type="button" class="gpen-btn gpen-seg ${st.place === 'row' ? 'gpen-on' : ''}" data-dplace="row"><span>기본</span></button><button type="button" class="gpen-btn gpen-seg ${st.place === 'custom' ? 'gpen-on' : ''}" data-dplace="custom"><span>커스텀</span></button></div></div>
+          <div class="gpen-row">${[['place', '레이아웃'], ['align', '정렬'], ['deco', '아꾸']].map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
+          <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row gpen-chipgrid">${[['row', '기본'], ['custom', '커스텀'], ['ded1', '전용1'], ['ded2', '전용2']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${st.place === v ? 'gpen-on' : ''}" data-dplace="${v}"><span>${l}</span></button>`).join('')}</div><div class="gpen-hint">기본·커스텀 → CSS 수정 가능 / 화면 깨짐 시 사용<br>전용 1·2 → CSS 수정 불가 / 화면 깨짐 정상</div></div>
           <div class="gpen-ipane" data-ipane-body="align" ${iconPane === 'align' ? '' : 'hidden'}><div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>
           <div class="gpen-ipane" data-ipane-body="deco" ${iconPane === 'deco' ? '' : 'hidden'}><div class="gpen-deco-body">${decoHtml()}</div></div>
 
@@ -690,9 +693,6 @@ function renderPanel(root) {
     root.on('click.gpen', '[data-dplace]', function () {
         S().place = $(this).data('dplace'); save(); buildBar();
         root.find('[data-dplace]').each(function () { $(this).toggleClass('gpen-on', $(this).data('dplace') === S().place); });
-        if (S().place === 'custom' && iconPane === 'align') iconPane = ''; // 커스텀은 정렬이 의미 없어서 정렬 칸을 숨김
-        root.find('[data-ipane="align"]').prop('hidden', S().place === 'custom');
-        root.find('[data-ipane-body="align"]').prop('hidden', iconPane !== 'align');
     });
     root.on('click.gpen', '[data-dalign]', function () {
         S().align = $(this).data('dalign'); save(); buildBar();

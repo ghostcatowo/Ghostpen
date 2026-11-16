@@ -1,4 +1,4 @@
-/* Ghostpen v0.7.18 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 index.js의 VERSION을 같이 고칠 것) */
+/* Ghostpen v0.7.19 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 index.js의 VERSION을 같이 고칠 것) */
 /* .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어) */
 
 /* 입력창 위 아이콘 줄 (:where 라서 사용자 CSS가 항상 이김) */
@@ -313,8 +313,23 @@
     gap: 4px;
     flex-wrap: nowrap;
     justify-content: flex-end;
+    opacity: 1; /* 오른쪽 버튼 영역에서 받는 흐림을 아이콘 줄에서만 풀어 기본과 같은 색으로 */
 }
 #send_form.gpen-custom #ghostpen_bar .gpen-icon { width: 30px; height: 30px; font-size: 15px; } /* 아이콘 꾸미기에서 바꾼 크기는 인라인 스타일이 이김 */
+
+/* 전용1: 윗줄 [삼줄·마법봉][아이콘][비행기] / 아랫줄 [입력칸] (flex, 칸 번호 없음)
+ * 입력칸만 order 로 아랫줄에 보내고, 나머지는 원래 순서 그대로 둔다. 규칙은 모두 같은 우선순위. */
+#send_form.gpen-ded1 #nonQRFormItems { display: flex; flex-wrap: wrap; align-items: center; row-gap: 4px; }
+#send_form.gpen-ded1 #ghostpen_bar { flex: 0 0 auto; width: auto; height: auto; min-width: 0; margin: 0 0 0 auto; padding: 0 2px; gap: 4px; flex-wrap: nowrap; }
+#send_form.gpen-ded1 #send_textarea { order: 1; flex: 1 0 100%; width: 100%; min-width: 0; }
+#send_form.gpen-ded1 #rightSendForm { align-self: center; }
+
+/* 전용2: 윗줄 [삼줄·마법봉][아이콘] / 아랫줄 [입력칸][비행기] (grid, 규칙은 모두 같은 우선순위) */
+#send_form.gpen-ded2 #nonQRFormItems { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; row-gap: 4px; }
+#send_form.gpen-ded2 #leftSendForm { grid-column: 1; grid-row: 1; }
+#send_form.gpen-ded2 #ghostpen_bar { grid-column: 2 / 4; grid-row: 1; min-width: 0; width: auto; margin: 0; flex-wrap: nowrap; gap: 4px; padding: 0 2px; }
+#send_form.gpen-ded2 #send_textarea { grid-column: 1 / 3; grid-row: 2; width: 100%; min-width: 0; }
+#send_form.gpen-ded2 #rightSendForm { grid-column: 3; grid-row: 2; align-self: center; }
 
 /* 여백 규칙
  * 항목 사이 16px / 제목 위 20px·아래 8px / 접이식 안 8px / 중첩 8px */
