@@ -1,10 +1,11 @@
-// Ghostpen v0.7.14 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.15 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// [v0.7.15] 설정에 '아이콘 설정' 항목 추가: 위치/정렬/아꾸 버튼 3개를 가로 한 줄로 놓고, 누른 것만 아래에 펼침 (접이식 3줄 대신)
 // [v0.7.14] 설정의 위치/정렬을 각각 접이식으로 분리, '아이콘 꾸미기'를 '아꾸'로 변경 / 굽은 큰따옴표(“ ”) 대사도 큰따옴표처럼 유지(프롬프트 + 변경 확인). 작은따옴표는 제외
 // [v0.7.13] 취소 알림(토스트) 3개 삭제 (취소 동작은 그대로) / 이미지 아이콘 끌림 방지 draggable="false" 추가 (CSS는 모든 아이콘에 선택·끌림·iOS 메뉴 방지)
 // [v0.7.12] 시점 4번째 아이콘 이름을 '통합'에서 '올인원'으로 변경 / 아이콘 꾸미기 선택 줄을 위 3개 + 아래 2개 배치로 변경
 // [v0.7.10] 올인원 버튼 추가 (시점 4번째 아이콘, 꾹 누르면 시점 선택) / 설정의 시점 버튼을 2x2로 배치
 const MODULE = 'ghostpen';
-const VERSION = '0.7.14';
+const VERSION = '0.7.15';
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
@@ -476,8 +477,7 @@ function themeRGB(cssVar) { // 테마 기본색을 RGB로 읽기
 }
 const decoColorOpen = {};
 let decoSel = 'first';
-let decoOpen = false;
-let placeOpen = false, alignOpen = false; // [v0.7.14] 위치/정렬 접이식 열림 상태
+let iconPane = ''; // [v0.7.15] 아이콘 설정에서 열린 칸: '' (모두 닫힘) | 'place' | 'align' | 'deco'
 function decoHtml() {
     const c = ic(decoSel);
     const seg = (attr, v, label, cur) => `<button type="button" class="gpen-btn gpen-seg ${cur === v ? 'gpen-on' : ''}" data-${attr}="${v}"><span>${label}</span></button>`;
@@ -608,18 +608,11 @@ function renderPanel(root) {
 
           <div class="gpen-section-title">아이콘</div>
           <div class="gpen-row gpen-chipgrid">${chip('first')}${chip('third')}${chip('keep')}${chip('unified')}</div>
-          <details class="gpen-fold" data-fold="place" ${placeOpen ? 'open' : ''}>
-<summary>위치</summary>
-<div class="gpen-row"><button type="button" class="gpen-btn gpen-seg ${st.place !== 'merge' ? 'gpen-on' : ''}" data-dplace="row"><span>따로</span></button><button type="button" class="gpen-btn gpen-seg ${st.place === 'merge' ? 'gpen-on' : ''}" data-dplace="merge"><span>같이</span></button></div>
-</details>
-<details class="gpen-fold" data-fold="align" ${alignOpen ? 'open' : ''}>
-<summary>정렬</summary>
-<div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div>
-</details>
-<details class="gpen-deco" ${decoOpen ? 'open' : ''}>
-            <summary>아꾸</summary>
-            <div class="gpen-deco-body">${decoHtml()}</div>
-          </details>
+          <div class="gpen-section-title">아이콘 설정</div>
+          <div class="gpen-row">${[['place', '위치'], ['align', '정렬'], ['deco', '아꾸']].map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
+          <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row"><button type="button" class="gpen-btn gpen-seg ${st.place !== 'merge' ? 'gpen-on' : ''}" data-dplace="row"><span>따로</span></button><button type="button" class="gpen-btn gpen-seg ${st.place === 'merge' ? 'gpen-on' : ''}" data-dplace="merge"><span>같이</span></button></div></div>
+          <div class="gpen-ipane" data-ipane-body="align" ${iconPane === 'align' ? '' : 'hidden'}><div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>
+          <div class="gpen-ipane" data-ipane-body="deco" ${iconPane === 'deco' ? '' : 'hidden'}><div class="gpen-deco-body">${decoHtml()}</div></div>
 
           <div class="gpen-section-title">강도</div>
           <div class="gpen-row">${segBtn('intensity', 'weak', '약')}${segBtn('intensity', 'mid', '중')}${segBtn('intensity', 'strong', '강')}</div>
@@ -689,8 +682,12 @@ function renderPanel(root) {
     const refreshDeco = () => root.find('.gpen-deco-body').html(decoHtml());
     const refreshPreview = () => root.find('.gpen-deco-preview .gpen-icon').attr('style', iconStyle(decoSel) + 'cursor:default').html(iconInner(decoSel));
     const warn = msg => { try { window.toastr?.warning(msg); } catch { /* 무시 */ } };
-    root.on('click.gpen', '.gpen-deco > summary', function () { decoOpen = !$(this).parent().prop('open'); });
-    root.on('click.gpen', '.gpen-fold > summary', function () { const d = $(this).parent(), open = !d.prop('open'); if (d.data('fold') === 'place') placeOpen = open; else alignOpen = open; }); // [v0.7.14] 위치/정렬 열림 상태 기억
+    root.on('click.gpen', '[data-ipane]', function () { // [v0.7.15] 아이콘 설정: 누른 칸만 열고, 열린 칸을 다시 누르면 닫음
+        const k = $(this).attr('data-ipane');
+        iconPane = iconPane === k ? '' : k;
+        root.find('[data-ipane]').each(function () { $(this).toggleClass('gpen-on', $(this).attr('data-ipane') === iconPane); });
+        root.find('[data-ipane-body]').each(function () { $(this).prop('hidden', $(this).attr('data-ipane-body') !== iconPane); });
+    });
     root.on('click.gpen', '.gpen-colorfold > summary', function () { const d = $(this).parent(); decoColorOpen[d.data('k')] = !d.prop('open'); });
     root.on('click.gpen', '[data-dplace]', function () {
         S().place = $(this).data('dplace'); save(); buildBar();
