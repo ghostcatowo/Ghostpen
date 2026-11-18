@@ -1,6 +1,6 @@
-// Ghostpen v0.7.23 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.24 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.23';
+const VERSION = '0.7.24';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -10,10 +10,12 @@ const MODE = {
     third: { label: '3인칭', icon: 'fa-users', flag: 'showThird' },
     keep:  { label: '고정X', icon: 'fa-ghost', flag: 'showKeep' },
     unified: { label: '올인원', icon: 'fa-layer-group', flag: 'showUnified' }, // 고른 시점(unifiedPick)으로 대필
+    character: { label: '캐릭터', icon: 'fa-dove', flag: 'showCharacter' }, // 초안을 방향으로 주입해 채팅 모델이 응답 (고펜 프롬프트·강도·분량 안 씀)
 };
 const DEFAULTS = {
     showFirst: true, showThird: true, showKeep: true,
     showUnified: false,
+    showCharacter: true,
     unifiedPick: 'first',
     intensity: 'mid',     // weak | mid | strong
     minChars: 500, maxChars: 800,
@@ -157,6 +159,20 @@ function splitRequest(text) {
 const REQUEST_INSTRUCTION = [
     `[Request]`,
     `The user attached a request to this ghostwriting. This request takes priority over all the rules and instructions above. Where it conflicts with a rule, follow the request all the way; do not reflect only part of it or skip it because of a rule. Follow the usual rules only for what the request does not mention. Before you output, check that the request is reflected.`,
+].join('\n');
+
+// 캐릭터: 채팅 모델에게 임시로 끼워 넣는 안내문 (고펜 시스템/사용자 프롬프트와 별개)
+const CHARACTER_DIRECTION = [
+    `[Response direction]`,
+    `- The <direction> below is the content and development the user wants reflected in this response. Reflect every action, line of dialogue, event, emotion, and mood written in it in this response, without omitting any.`,
+    `- Arrange the content of the direction in a natural order that fits the overall context and cause-and-effect, but where a time order is clearly given, follow it as it is.`,
+    `- Keep the response length, writing style, narrative approach, and output format to the standards that carry over from the existing instructions and the conversation so far.`,
+    `- Do not copy the sentences of the <direction> as they are or merely polish the sentences. Adapt the actions and dialogue to fit each character's personality, speech style, existing relationships, and the flow of previous responses, and reconstruct them naturally, while keeping the original intent and core content.`,
+    `- Write the actions and dialogue of {{user}} that are stated in the <direction> in this response, even where the usual rule says not to write for {{user}}. Do not invent actions or dialogue of {{user}} that are not stated.`,
+    `- Supplement the details and connecting steps that are not stated so that they fit the existing context and cause-and-effect. Do not contradict established facts or characters' personalities, and do not add major events or abrupt developments of your own.`,
+    `- After reflecting all the content of the direction, keep the roleplay moving: continue the scene through the characters' natural reactions, follow-up actions, and dialogue, and lead into the next interaction. Do not end the response mechanically at the last sentence of the direction or close the scene on your own.`,
+    `- Even if the <direction> is written as an instruction or a summary, do not explain or summarize its content; carry it out as the actual actions, dialogue, and narration of the characters.`,
+    `- Do not mention this notice or the tags.`,
 ].join('\n');
 
 function buildMessages(input, mode, st, request = '') {
@@ -355,7 +371,7 @@ async function runGhostpen(mode) {
     } catch (e) {
         if (!run || run.id !== id || run.cancelled) return; // 취소는 실패 아님
         const timedOut = run.timedOut;
-        toastr.error('👻 펜 뽀려요 대필 실패 ! 👻')?.css({ 'border-radius': '14px', 'background-color': 'var(--SmartThemeBlurTintColor)', 'background-image': 'none', color: 'var(--SmartThemeBodyColor)', border: '1px solid var(--SmartThemeBorderColor)' });
+        failToast('👻 펜 뽀려요 대필 실패 ! 👻');
         const detail = timedOut ? `${st.timeoutSec}초 안에 응답이 오지 않았어요.` : String(e?.message || e).slice(0, 600);
         addLog({
             level: 'fail', result: '❌ 실패', stage,
@@ -373,17 +389,90 @@ async function runGhostpen(mode) {
     }
 }
 
-function cancelRun() { // 진행 중인 대필을 즉시 취소 (알림 없음)
+function cancelRun() { // 진행 중인 대필·캐릭터를 즉시 취소 (알림 없음)
     if (!run) return;
     const m = run.mode;
-    run.cancelled = true; run.controller.abort(); run = null; setBusy(m, false);
+    run.cancelled = true;
+    if (m === 'character') { // 채팅 모델 생성은 ST의 중지를 부르고, 입력칸이 비어 있으면 초안을 되돌림
+        run = null; setBusy(m, false);
+        stopChatGeneration(); clearDirection(); restoreIfEmpty();
+        return;
+    }
+    run.controller.abort(); run = null; setBusy(m, false);
 }
+const cancelGhost = () => { if (run && run.mode !== 'character') cancelRun(); }; // 전송·채팅 변경 때는 고펜 대필만 취소
+
+/* 캐릭터: 초안을 안내문으로 감싸 채팅 모델에 주입하고, 응답 생성을 시작시킨다 */
+const DIR_KEY = 'gpen_direction';
+let dirOn = false;
+function failToast(msg) {
+    toastr.error(msg)?.css({ 'border-radius': '14px', 'background-color': 'var(--SmartThemeBlurTintColor)', 'background-image': 'none', color: 'var(--SmartThemeBodyColor)', border: '1px solid var(--SmartThemeBorderColor)' });
+}
+async function setDirection(text) {
+    const c = ctx();
+    if (typeof c.setExtensionPrompt === 'function') {
+        c.setExtensionPrompt(DIR_KEY, text, 1, 0, false, 0); // 위치 1=채팅 안, 깊이 0=맨 끝, 역할 0=system
+    } else if (typeof c.executeSlashCommandsWithOptions === 'function') { // 내부 함수가 없는 버전은 슬래시 명령으로 (| 와 따옴표는 이스케이프)
+        const q = t => t.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\|/g, '\\|');
+        await c.executeSlashCommandsWithOptions(text ? `/inject id=${DIR_KEY} position=chat depth=0 role=system ephemeral=true "${q(text)}"` : `/flushinject ${DIR_KEY}`);
+    } else throw new Error('주입 기능(setExtensionPrompt)을 찾을 수 없어요. SillyTavern을 업데이트해 주세요.');
+    dirOn = !!text;
+}
+function clearDirection() { if (!dirOn) return; dirOn = false; setDirection('').catch(() => {}); }
+async function startGeneration() {
+    const c = ctx();
+    if (typeof c.executeSlashCommandsWithOptions === 'function') {
+        const r = await c.executeSlashCommandsWithOptions('/trigger');
+        if (r?.isError || r?.isAborted) throw new Error(r.abortReason || '/trigger 실행에 실패했어요.');
+    } else if (typeof c.generate === 'function') await c.generate('normal');
+    else throw new Error('응답 생성을 시작할 방법을 찾을 수 없어요. SillyTavern을 업데이트해 주세요.');
+}
+function stopChatGeneration() {
+    const c = ctx();
+    try { if (typeof c.stopGeneration === 'function') { c.stopGeneration(); return; } } catch { /* 아래 방법으로 */ }
+    document.getElementById('mes_stop')?.click();
+}
+function restoreIfEmpty() { // 입력칸이 비어 있을 때만 초안을 되돌림 (그 사이 쓴 글을 덮어쓰지 않음)
+    if (lastOriginal !== null && !document.getElementById('send_textarea').value) restoreOriginal();
+}
+function endCharacter() { // 응답 생성이 끝나거나 중지되면 쪽지를 빼고 일반 상태로 (원문은 복원용으로 남김)
+    clearDirection();
+    if (run?.mode === 'character') { run = null; setBusy('character', false); }
+}
+async function runCharacter() {
+    const ta = document.getElementById('send_textarea');
+    const draft = ta.value;
+    if (!draft.trim()) return; // 빈 초안이면 아무 일 없음
+    const id = ++runCounter;
+    run = { id, mode: 'character', cancelled: false };
+    setBusy('character', true);
+    lastOriginal = draft;
+    ta.value = '';
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    updateRestoreUI();
+    let stage = '방향 주입';
+    try {
+        const c = ctx();
+        const sub = t => c.substituteParams ? c.substituteParams(t) : t;
+        await setDirection(sub(`${CHARACTER_DIRECTION}\n<direction>\n${draft}\n</direction>`));
+        if (run?.id !== id) { clearDirection(); return; } // 그 사이 취소됨
+        stage = '응답 생성 시작';
+        await startGeneration();
+    } catch (e) {
+        if (!run || run.id !== id) return; // 취소·중지는 실패 아님
+        run = null; setBusy('character', false);
+        clearDirection(); restoreIfEmpty();
+        failToast('👻 캐릭터 응답 시작 실패 👻');
+        addLog({ level: 'fail', result: '❌ 실패', stage, reason: e?.name || 'Error', detail: String(e?.message || e).slice(0, 600), mode: MODE.character.label, inputChars: draft.length, env: `확장 v${VERSION} / ${deviceInfo()}` });
+    }
+}
+
 function onIconClick(mode) {
     if (run) { if (run.mode === mode) cancelRun(); return; } // 같은 아이콘을 다시 누르면 취소 (알림 없음)
-    runGhostpen(mode);
+    if (mode === 'character') runCharacter(); else runGhostpen(mode);
 }
 function setBusy(mode, busy) {
-    $('#ghostpen_bar').toggleClass('gpen-busy', busy);
+    $('#ghostpen_bar').toggleClass('gpen-busy', busy).toggleClass('gpen-busychar', busy && mode === 'character');
     $('#ghostpen_bar .gpen-icon[data-mode]').each(function () {
         const m = $(this).data('mode');
         const active = busy && m === mode;
@@ -410,7 +499,7 @@ function clearOriginal() { lastOriginal = null; updateRestoreUI(); }
 
 
 /* 아이콘 꾸미기 */
-const ICON_KEYS = ['first', 'third', 'keep', 'unified', 'restore'];
+const ICON_KEYS = ['first', 'third', 'keep', 'unified', 'character', 'restore'];
 const ICON_DEF = { kind: 'default', emoji: '', img: '', size: 32, color: '', bcolor: '', shape: 'default' };
 const SHAPES = { default: '기본', round: '원', square: '네모', none: '없음' };
 const iconMeta = k => k === 'restore' ? { label: '복원', icon: 'fa-rotate-left' } : MODE[k];
@@ -478,7 +567,7 @@ let iconPane = ''; // 설정에서 열린 칸: '' (모두 닫힘) | 'place' | 'd
 function decoHtml() {
     const c = ic(decoSel);
     const seg = (attr, v, label, cur) => `<button type="button" class="gpen-btn gpen-seg ${cur === v ? 'gpen-on' : ''}" data-${attr}="${v}"><span>${label}</span></button>`;
-    // 선택 줄: 위 3개(1인칭·3인칭·고정X) + 아래 2개(올인원·복원), 배치는 CSS .gpen-dselgrid
+    // 선택 줄: 위 3개(1인칭·3인칭·고정X) + 아래 3개(올인원·캐릭터·복원), 배치는 CSS .gpen-dselgrid
     const sels = ICON_KEYS.map(k => seg('dsel', k, iconMeta(k).label, decoSel)).join('');
     const colorRow = (key, label, val) => {
         const set = safeColor(val);
@@ -608,7 +697,7 @@ function renderPanel(root) {
           <div class="gpen-row"><button type="button" class="gpen-btn gpen-restore-btn ${lastOriginal === null ? 'gpen-dim' : ''}"><i class="fa-solid fa-rotate-left"></i><span>원문 복원</span></button></div>
 
           <div class="gpen-section-title">시점</div>
-          <div class="gpen-row gpen-chipgrid">${chip('first')}${chip('third')}${chip('keep')}${chip('unified')}</div>
+          <div class="gpen-row gpen-chipgrid">${chip('first')}${chip('third')}${chip('keep')}${chip('unified')}${chip('character')}</div>
           <div class="gpen-section-title">설정</div>
           <div class="gpen-row">${[['place', '레이아웃'], ['deco', '아이콘 꾸미기']].map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
           <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row gpen-chipgrid">${[['row', '기본'], ['custom', '커스텀'], ['ded1', '전용1'], ['ded2', '전용2']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${st.place === v ? 'gpen-on' : ''}" data-dplace="${v}"><span>${l}</span></button>`).join('')}</div><div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>
@@ -793,10 +882,12 @@ jQuery(() => {
     addDrawer();
     try { // 전송/채팅 변경 시 원문 삭제
         const { eventSource, event_types } = ctx();
-        eventSource.on(event_types.MESSAGE_SENT, () => { cancelRun(); clearOriginal(); });
-        eventSource.on(event_types.CHAT_CHANGED, () => { cancelRun(); clearOriginal(); });
+        eventSource.on(event_types.MESSAGE_SENT, () => { cancelGhost(); clearOriginal(); clearDirection(); });
+        eventSource.on(event_types.CHAT_CHANGED, () => { cancelGhost(); endCharacter(); clearOriginal(); });
+        eventSource.on(event_types.GENERATION_ENDED, endCharacter);
+        eventSource.on(event_types.GENERATION_STOPPED, endCharacter);
     } catch { /* 무시 */ }
-    document.getElementById('send_but')?.addEventListener('click', () => cancelRun(), true); // 전송 버튼 (대필 중이 아니면 아무 일도 안 함)
+    document.getElementById('send_but')?.addEventListener('click', () => cancelGhost(), true); // 전송 버튼 (대필 중이 아니면 아무 일도 안 함)
     let tries = 0;
     const iv = setInterval(() => { addWandItem(); if ($('#ghostpen_wand').length || ++tries > 20) clearInterval(iv); }, 1000);
 });

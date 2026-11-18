@@ -1,4 +1,4 @@
-/* Ghostpen v0.7.23 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 index.js의 VERSION을 같이 고칠 것) */
+/* Ghostpen v0.7.24 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 index.js의 VERSION을 같이 고칠 것) */
 /* .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어) */
 
 /* 입력창 위 아이콘 줄 (:where 라서 사용자 CSS가 항상 이김) */
@@ -38,6 +38,7 @@
 .gpen-icon:hover { border-color: var(--SmartThemeQuoteColor); }
 .gpen-icon.gpen-active { border-color: var(--SmartThemeQuoteColor); }
 #ghostpen_bar.gpen-busy .gpen-icon:not(.gpen-active) { opacity: 0.4; pointer-events: none; }
+#ghostpen_bar.gpen-busy.gpen-busychar .gpen-icon.gpen-restore { opacity: 1; pointer-events: auto; } /* 캐릭터 응답을 기다리는 중에도 복원은 누를 수 있음 (응답 생성은 취소되지 않음) */
 
 /* 원문 복원 아이콘 (대필 직후에만 표시) */
 .gpen-icon.gpen-restore { display: none; }
@@ -379,14 +380,14 @@
 /* 시점 메뉴 글자 정렬: 아이콘마다 폭이 달라 글자 시작 위치가 흔들리던 것을, 아이콘 칸 폭을 같게 해서 줄 맞춤 */
 .gpen-pickitem i { flex: 0 0 auto; width: 1.4em; text-align: center; }
 
-/* 아이콘 꾸미기 선택 줄: 위 3개(1인칭·3인칭·고정X)는 각 1/3, 아래 2개(올인원·복원)는 각 1/2로 두 줄의 전체 가로 길이를 맞춤 */
+/* 아이콘 꾸미기 선택 줄: 위 3개(1인칭·3인칭·고정X), 아래 3개(올인원·캐릭터·복원)를 각 1/3로 두 줄에 맞춤 */
 .gpen-row.gpen-dselgrid { grid-auto-flow: row; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
-.gpen-dselgrid > .gpen-seg:nth-child(-n+3) { grid-column: span 2; }
-.gpen-dselgrid > .gpen-seg:nth-child(n+4) { grid-column: span 3; }
+.gpen-dselgrid > .gpen-seg { grid-column: span 2; }
 
-/* 설정의 시점 버튼(2x2): 아이콘 칸 폭을 같게 하고 왼쪽부터 놓아 아이콘·글자 시작 위치를 줄 맞춤 */
-.gpen-row.gpen-chipgrid .gpen-chip { justify-content: flex-start; padding: 0 0 0 18px; }
+/* 설정의 시점 버튼(2열): 강도·분량 버튼처럼 가운데 정렬, 캐릭터는 한 줄 전체 */
+.gpen-row.gpen-chipgrid .gpen-chip { justify-content: center; padding: 0 8px; }
 .gpen-row.gpen-chipgrid .gpen-chip i { flex: 0 0 auto; width: 1.4em; text-align: center; }
+.gpen-row.gpen-chipgrid .gpen-chip[data-flag="showCharacter"] { grid-column: 1 / -1; }
 
 /* 설정 펼침 칸: 위 가로 버튼(레이아웃/아이콘 꾸미기)에서 고른 칸만 보임. 칸 안쪽 여백은 위아래 12px로 */
 .gpen-ipane { padding: 12px; }
