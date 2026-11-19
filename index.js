@@ -1,6 +1,6 @@
-// Ghostpen v0.7.26 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.27 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.26';
+const VERSION = '0.7.27';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -408,12 +408,25 @@ let dirOn = false;
 function failToast(msg) {
     toastr.error(msg)?.css({ 'border-radius': '14px', 'background-color': 'var(--SmartThemeBlurTintColor)', 'background-image': 'none', color: 'var(--SmartThemeBodyColor)', border: '1px solid var(--SmartThemeBorderColor)' });
 }
+let pendingDir = null; // 채팅 완성: 프롬프트가 만들어지는 순간 맨 끝에 붙일 방향 (붙이면 비움)
+const dirEvent = () => ctx().event_types?.CHAT_COMPLETION_PROMPT_READY;
+function dirUnhook() { try { const es = ctx().eventSource; (es.removeListener || es.off).call(es, dirEvent(), dirHook); } catch { /* 무시 */ } }
+function dirHook(data) { // 모델로 보내기 직전의 프롬프트 맨 끝에 유저 메시지로 한 번만 추가
+    if (!pendingDir || data?.dryRun || !Array.isArray(data?.chat)) return;
+    data.chat.push({ role: 'user', content: pendingDir });
+    pendingDir = null; dirUnhook();
+    diagPrompt(data); // 붙인 뒤의 프롬프트로 진단
+}
 async function setDirection(text) {
     const c = ctx();
-    if (typeof c.setExtensionPrompt === 'function') {
+    if (c.mainApi === 'openai' && dirEvent() && c.eventSource) {
+        dirUnhook(); pendingDir = text || null;
+        if (text) c.eventSource.on(dirEvent(), dirHook);
+        if (diag) diag.path = '요청: 프롬프트 맨 끝에 유저 메시지로 직접 추가 (채팅 완성)';
+    } else if (typeof c.setExtensionPrompt === 'function') {
         c.setExtensionPrompt(DIR_KEY, text, 1, 0, false, 0); // 위치 1=채팅 안, 깊이 0=맨 끝, 역할 0=system
-        if (diag) diag.path = '내부 함수 setExtensionPrompt (채팅 맨 끝, system)';
-    } else if (typeof c.executeSlashCommandsWithOptions === 'function') { if (diag) diag.path = '슬래시 /inject'; // 내부 함수가 없는 버전은 슬래시 명령으로 (| 와 따옴표는 이스케이프)
+        if (diag) diag.path = '요청: 내부 함수 setExtensionPrompt (채팅 안, 깊이 0, system)';
+    } else if (typeof c.executeSlashCommandsWithOptions === 'function') { if (diag) diag.path = '요청: 슬래시 /inject'; // 내부 함수가 없는 버전은 슬래시 명령으로 (| 와 따옴표는 이스케이프)
         const q = t => t.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\|/g, '\\|');
         await c.executeSlashCommandsWithOptions(text ? `/inject id=${DIR_KEY} position=chat depth=0 role=system ephemeral=true "${q(text)}"` : `/flushinject ${DIR_KEY}`);
     } else throw new Error('주입 기능(setExtensionPrompt)을 찾을 수 없어요. SillyTavern을 업데이트해 주세요.');
@@ -466,7 +479,7 @@ function diagDrop() { if (!diag) return; clearTimeout(diag.watch); diagUnhook();
 function diagBegin(mode, draft) {
     diagDrop();
     const c = ctx(), chat = c.chat || [], last = chat[chat.length - 1];
-    const d = diag = { mode, t0: Date.now(), before: chat.length, last: last ? describeMsg(last) : '없음', draftChars: draft.length };
+    const d = diag = { mode, t0: Date.now(), before: chat.length, last: last ? describeMsg(last) : '없음', lastUser: !!last?.is_user, draftChars: draft.length };
     try { for (const [e, fn] of diagEvents()) c.eventSource.on(e, fn); } catch { /* 진단이 실패해도 본 기능에는 영향 없음 */ }
     d.watch = setTimeout(() => { // 20초 동안 생성 시작 신호가 없으면 경고
         if (diag !== d || d.started || d.prompt) return;
@@ -480,14 +493,15 @@ function diagStarted() { // 생성이 시작된 순간의 채팅 변화 (유저 
     diag.atStart = (ctx().chat || []).slice(diag.before).map(describeMsg).join(', ') || '변화 없음';
 }
 function diagPrompt(data) { // 모델로 가는 프롬프트에 방향이 실제로 들어갔는지 (서버 후처리 전 기준)
-    if (!diag || diag.prompt || data?.dryRun) return;
+    if (!diag || diag.prompt || data?.dryRun || pendingDir) return; // 방향을 아직 못 붙였으면 건너뜀
     const msgs = Array.isArray(data?.chat) ? data.chat : null;
     if (msgs) {
         const txt = m => typeof m?.content === 'string' ? m.content : Array.isArray(m?.content) ? m.content.map(x => x?.text || '').join('') : '';
         let at = -1;
         for (let i = msgs.length - 1; i >= 0; i--) if (txt(msgs[i]).includes(DIR_MARK)) { at = i; break; }
-        diag.found = at >= 0;
-        diag.prompt = at < 0 ? '프롬프트에 방향이 없음' : `맨 끝에서 ${msgs.length - 1 - at}번째, 역할 ${msgs[at].role}, 그 메시지 ${txt(msgs[at]).length}자 (방향 ${diag.dirChars}자), 전체 ${msgs.length}개, 맨 끝 역할 ${msgs[msgs.length - 1]?.role}`;
+        diag.found = at >= 0; diag.pos = msgs.length - 1 - at;
+        const tail = msgs.slice(-4).map(m => `${m.role} ${txt(m).length}자`).join(' / ');
+        diag.prompt = at < 0 ? '프롬프트에 방향이 없음' : `맨 끝에서 ${diag.pos}번째, 역할 ${msgs[at].role}, 그 메시지 ${txt(msgs[at]).length}자 (방향 ${diag.dirChars}자), 전체 ${msgs.length}개 / 끝 4개: ${tail}`;
     } else if (typeof data?.prompt === 'string') {
         const k = data.prompt.lastIndexOf(DIR_MARK);
         diag.found = k >= 0;
@@ -509,12 +523,15 @@ function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
             if (added.some(m => m.is_user)) warns.push('유저 메시지가 생겼어요 (초안이 내 메시지로 올라갔을 수 있어요)');
             if (added.length > 1) warns.push(`새 메시지가 ${added.length}개예요`);
             if (added.some(m => !m.is_user && /\[Response direction\]|<direction>/i.test(m.mes || ''))) warns.push('응답에 안내문이 노출됐어요');
-            if (d.prompt && !d.found) warns.push('생성 프롬프트에서 방향을 찾지 못했어요');
+            if (!d.prompt) warns.push('방향이 프롬프트에 추가됐는지 확인하지 못했어요 (프롬프트 이벤트 없음)');
+            else if (!d.found) warns.push('생성 프롬프트에서 방향을 찾지 못했어요');
+            else if (d.pos > 2) warns.push(`방향이 프롬프트 맨 끝에서 ${d.pos}번째라 약할 수 있어요`);
+            if (d.lastUser) warns.push('시작 전 채팅의 마지막이 유저 메시지였어요');
         }
         putDiag({
             level: warns.length ? 'warn' : 'info',
-            result: warns.length ? '⚠️ 캐릭터 이상 감지' : 'ℹ️ 캐릭터 진단 (정상, 최근 1건)',
-            reason: warns.length ? '이상 감지' : '정상',
+            result: warns.length ? `⚠️ 캐릭터 이상 감지 (${how})` : `ℹ️ 캐릭터 진단 (${how}, 최근 1건)`,
+            reason: warns.length ? `이상 감지 (${how})` : how,
             detail: warns.join(' / '),
             mode: MODE[d.mode].label, inputChars: d.draftChars, end: how,
             ...diagFields(d),
