@@ -1,6 +1,6 @@
-// Ghostpen v0.7.24 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.25 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.24';
+const VERSION = '0.7.25';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -9,8 +9,8 @@ const MODE = {
     first: { label: '1인칭', icon: 'fa-user', flag: 'showFirst' },
     third: { label: '3인칭', icon: 'fa-users', flag: 'showThird' },
     keep:  { label: '고정X', icon: 'fa-ghost', flag: 'showKeep' },
-    unified: { label: '올인원', icon: 'fa-layer-group', flag: 'showUnified' }, // 고른 시점(unifiedPick)으로 대필
-    character: { label: '캐릭터', icon: 'fa-dove', flag: 'showCharacter' }, // 초안을 방향으로 주입해 채팅 모델이 응답 (고펜 프롬프트·강도·분량 안 씀)
+    character: { label: '캐릭터', icon: 'fa-kiwi-bird', flag: 'showCharacter' }, // 초안을 방향으로 주입해 채팅 모델이 응답 (고펜 프롬프트·강도·분량 안 씀)
+    unified: { label: '올인원', icon: 'fa-layer-group', flag: 'showUnified' }, // 고른 시점(unifiedPick)으로 대필 (캐릭터도 고를 수 있음)
 };
 const DEFAULTS = {
     showFirst: true, showThird: true, showKeep: true,
@@ -167,8 +167,9 @@ const CHARACTER_DIRECTION = [
     `- The <direction> below is the content and development the user wants reflected in this response. Reflect every action, line of dialogue, event, emotion, and mood written in it in this response, without omitting any.`,
     `- Arrange the content of the direction in a natural order that fits the overall context and cause-and-effect, but where a time order is clearly given, follow it as it is.`,
     `- Keep the response length, writing style, narrative approach, and output format to the standards that carry over from the existing instructions and the conversation so far.`,
-    `- Do not copy the sentences of the <direction> as they are or merely polish the sentences. Adapt the actions and dialogue to fit each character's personality, speech style, existing relationships, and the flow of previous responses, and reconstruct them naturally, while keeping the original intent and core content.`,
-    `- Write the actions and dialogue of {{user}} that are stated in the <direction> in this response, even where the usual rule says not to write for {{user}}. Do not invent actions or dialogue of {{user}} that are not stated.`,
+    `- Do not copy the sentences of the <direction> as they are or merely polish the sentences. Adapt the actions and dialogue of each character other than {{user}} to fit that character's personality, speech style, existing relationships, and the flow of previous responses, and reconstruct them naturally, while keeping the original intent and core content.`,
+    `- Write the actions and dialogue of {{user}} that are stated in the <direction> in this response, even where the usual rule says not to write for {{user}}. Use {{user}}'s dialogue exactly as written, without editing or rephrasing it, and reflect {{user}}'s actions naturally in the narration without changing or omitting their content. Do not invent actions or dialogue of {{user}} that are not stated.`,
+    `- Even if the <direction> contains only actions or dialogue of {{user}}, reflect them in this response, then continue with the other characters' reactions and follow-up actions. Do not ignore the <direction> or respond only to the previous conversation.`,
     `- Supplement the details and connecting steps that are not stated so that they fit the existing context and cause-and-effect. Do not contradict established facts or characters' personalities, and do not add major events or abrupt developments of your own.`,
     `- After reflecting all the content of the direction, keep the roleplay moving: continue the scene through the characters' natural reactions, follow-up actions, and dialogue, and lead into the next interaction. Do not end the response mechanically at the last sentence of the direction or close the scene on your own.`,
     `- Even if the <direction> is written as an instruction or a summary, do not explain or summarize its content; carry it out as the actual actions, dialogue, and narration of the characters.`,
@@ -393,14 +394,14 @@ function cancelRun() { // 진행 중인 대필·캐릭터를 즉시 취소 (알�
     if (!run) return;
     const m = run.mode;
     run.cancelled = true;
-    if (m === 'character') { // 채팅 모델 생성은 ST의 중지를 부르고, 입력칸이 비어 있으면 초안을 되돌림
+    if (run.char) { // 채팅 모델 생성은 ST의 중지를 부르고, 입력칸이 비어 있으면 초안을 되돌림
         run = null; setBusy(m, false);
         stopChatGeneration(); clearDirection(); restoreIfEmpty();
         return;
     }
     run.controller.abort(); run = null; setBusy(m, false);
 }
-const cancelGhost = () => { if (run && run.mode !== 'character') cancelRun(); }; // 전송·채팅 변경 때는 고펜 대필만 취소
+const cancelGhost = () => { if (run && !run.char) cancelRun(); }; // 전송·채팅 변경 때는 고펜 대필만 취소
 
 /* 캐릭터: 초안을 안내문으로 감싸 채팅 모델에 주입하고, 응답 생성을 시작시킨다 */
 const DIR_KEY = 'gpen_direction';
@@ -437,15 +438,15 @@ function restoreIfEmpty() { // 입력칸이 비어 있을 때만 초안을 되�
 }
 function endCharacter() { // 응답 생성이 끝나거나 중지되면 쪽지를 빼고 일반 상태로 (원문은 복원용으로 남김)
     clearDirection();
-    if (run?.mode === 'character') { run = null; setBusy('character', false); }
+    if (run?.char) { const m = run.mode; run = null; setBusy(m, false); }
 }
-async function runCharacter() {
+async function runCharacter(mode) {
     const ta = document.getElementById('send_textarea');
     const draft = ta.value;
     if (!draft.trim()) return; // 빈 초안이면 아무 일 없음
     const id = ++runCounter;
-    run = { id, mode: 'character', cancelled: false };
-    setBusy('character', true);
+    run = { id, mode, char: true, cancelled: false };
+    setBusy(mode, true);
     lastOriginal = draft;
     ta.value = '';
     ta.dispatchEvent(new Event('input', { bubbles: true }));
@@ -460,19 +461,21 @@ async function runCharacter() {
         await startGeneration();
     } catch (e) {
         if (!run || run.id !== id) return; // 취소·중지는 실패 아님
-        run = null; setBusy('character', false);
+        run = null; setBusy(mode, false);
         clearDirection(); restoreIfEmpty();
         failToast('👻 캐릭터 응답 시작 실패 👻');
         addLog({ level: 'fail', result: '❌ 실패', stage, reason: e?.name || 'Error', detail: String(e?.message || e).slice(0, 600), mode: MODE.character.label, inputChars: draft.length, env: `확장 v${VERSION} / ${deviceInfo()}` });
     }
 }
 
+const unifiedKey = st => (PERSPECTIVE[st.unifiedPick] || st.unifiedPick === 'character') ? st.unifiedPick : 'first'; // 올인원이 고른 시점 (캐릭터 포함)
 function onIconClick(mode) {
     if (run) { if (run.mode === mode) cancelRun(); return; } // 같은 아이콘을 다시 누르면 취소 (알림 없음)
-    if (mode === 'character') runCharacter(); else runGhostpen(mode);
+    const pick = mode === 'unified' ? unifiedKey(S()) : mode;
+    if (pick === 'character') runCharacter(mode); else runGhostpen(mode);
 }
 function setBusy(mode, busy) {
-    $('#ghostpen_bar').toggleClass('gpen-busy', busy).toggleClass('gpen-busychar', busy && mode === 'character');
+    $('#ghostpen_bar').toggleClass('gpen-busy', busy).toggleClass('gpen-busychar', busy && !!run?.char);
     $('#ghostpen_bar .gpen-icon[data-mode]').each(function () {
         const m = $(this).data('mode');
         const active = busy && m === mode;
@@ -499,7 +502,7 @@ function clearOriginal() { lastOriginal = null; updateRestoreUI(); }
 
 
 /* 아이콘 꾸미기 */
-const ICON_KEYS = ['first', 'third', 'keep', 'unified', 'character', 'restore'];
+const ICON_KEYS = ['first', 'third', 'keep', 'character', 'unified', 'restore'];
 const ICON_DEF = { kind: 'default', emoji: '', img: '', size: 32, color: '', bcolor: '', shape: 'default' };
 const SHAPES = { default: '기본', round: '원', square: '네모', none: '없음' };
 const iconMeta = k => k === 'restore' ? { label: '복원', icon: 'fa-rotate-left' } : MODE[k];
@@ -567,7 +570,7 @@ let iconPane = ''; // 설정에서 열린 칸: '' (모두 닫힘) | 'place' | 'd
 function decoHtml() {
     const c = ic(decoSel);
     const seg = (attr, v, label, cur) => `<button type="button" class="gpen-btn gpen-seg ${cur === v ? 'gpen-on' : ''}" data-${attr}="${v}"><span>${label}</span></button>`;
-    // 선택 줄: 위 3개(1인칭·3인칭·고정X) + 아래 3개(올인원·캐릭터·복원), 배치는 CSS .gpen-dselgrid
+    // 선택 줄: 위 3개(1인칭·3인칭·고정X) + 아래 3개(캐릭터·올인원·복원), 배치는 CSS .gpen-dselgrid
     const sels = ICON_KEYS.map(k => seg('dsel', k, iconMeta(k).label, decoSel)).join('');
     const colorRow = (key, label, val) => {
         const set = safeColor(val);
@@ -600,8 +603,8 @@ const LONG_PRESS_MS = 500;
 function closePickMenu() { $('#gpen_pickmenu').remove(); $(document).off('.gpenpick'); }
 function openPickMenu(anchor) {
     closePickMenu();
-    const cur = PERSPECTIVE[S().unifiedPick] ? S().unifiedPick : 'first';
-    const menu = $(`<div id="gpen_pickmenu" role="menu">${['first', 'third', 'keep'].map(k =>
+    const cur = unifiedKey(S());
+    const menu = $(`<div id="gpen_pickmenu" role="menu">${['first', 'third', 'keep', 'character'].map(k =>
         `<div class="gpen-pickitem ${k === cur ? 'gpen-on' : ''}" data-pick="${k}"><i class="fa-solid ${MODE[k].icon}"></i><span>${MODE[k].label}</span></div>`).join('')}</div>`);
     $('body').append(menu);
     const r = anchor[0].getBoundingClientRect(); // 아이콘 위쪽에 띄우고, 공간이 없으면 아래쪽, 화면 밖으로는 안 나가게
@@ -645,7 +648,7 @@ function buildBar() {
     const icons = $('<div></div>');
     $(`<div class="gpen-icon gpen-restore" title="원문 복원" style="${iconStyle('restore')}">${iconInner('restore')}</div>`).on('click', restoreOriginal).appendTo(icons);
     for (const [k, v] of active) {
-        const title = k === 'unified' ? `${v.label} (${MODE[PERSPECTIVE[st.unifiedPick] ? st.unifiedPick : 'first'].label}) - 꾹 누르면 시점 선택` : v.label;
+        const title = k === 'unified' ? `${v.label} (${MODE[unifiedKey(st)].label}) - 꾹 누르면 시점 선택` : v.label;
         const el = $(`<div class="gpen-icon" data-mode="${k}" title="${title}" style="${iconStyle(k)}">${iconInner(k)}</div>`);
         if (k === 'unified') bindUnifiedPress(el); else el.on('click', () => onIconClick(k));
         el.appendTo(icons);
@@ -697,7 +700,7 @@ function renderPanel(root) {
           <div class="gpen-row"><button type="button" class="gpen-btn gpen-restore-btn ${lastOriginal === null ? 'gpen-dim' : ''}"><i class="fa-solid fa-rotate-left"></i><span>원문 복원</span></button></div>
 
           <div class="gpen-section-title">시점</div>
-          <div class="gpen-row gpen-chipgrid">${chip('first')}${chip('third')}${chip('keep')}${chip('unified')}${chip('character')}</div>
+          <div class="gpen-row gpen-chipgrid">${chip('first')}${chip('third')}${chip('keep')}${chip('character')}${chip('unified')}</div>
           <div class="gpen-section-title">설정</div>
           <div class="gpen-row">${[['place', '레이아웃'], ['deco', '아이콘 꾸미기']].map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
           <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row gpen-chipgrid">${[['row', '기본'], ['custom', '커스텀'], ['ded1', '전용1'], ['ded2', '전용2']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${st.place === v ? 'gpen-on' : ''}" data-dplace="${v}"><span>${l}</span></button>`).join('')}</div><div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>

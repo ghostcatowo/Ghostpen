@@ -1,4 +1,4 @@
-/* Ghostpen v0.7.24 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 index.js의 VERSION을 같이 고칠 것) */
+/* Ghostpen v0.7.25 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 index.js의 VERSION을 같이 고칠 것) */
 /* .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어) */
 
 /* 입력창 위 아이콘 줄 (:where 라서 사용자 CSS가 항상 이김) */
@@ -380,14 +380,14 @@
 /* 시점 메뉴 글자 정렬: 아이콘마다 폭이 달라 글자 시작 위치가 흔들리던 것을, 아이콘 칸 폭을 같게 해서 줄 맞춤 */
 .gpen-pickitem i { flex: 0 0 auto; width: 1.4em; text-align: center; }
 
-/* 아이콘 꾸미기 선택 줄: 위 3개(1인칭·3인칭·고정X), 아래 3개(올인원·캐릭터·복원)를 각 1/3로 두 줄에 맞춤 */
+/* 아이콘 꾸미기 선택 줄: 위 3개(1인칭·3인칭·고정X), 아래 3개(캐릭터·올인원·복원)를 각 1/3로 두 줄에 맞춤 */
 .gpen-row.gpen-dselgrid { grid-auto-flow: row; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
 .gpen-dselgrid > .gpen-seg { grid-column: span 2; }
 
-/* 설정의 시점 버튼(2열): 강도·분량 버튼처럼 가운데 정렬, 캐릭터는 한 줄 전체 */
+/* 설정의 시점 버튼(2열): 강도·분량 버튼처럼 가운데 정렬, 올인원은 한 줄 전체 */
 .gpen-row.gpen-chipgrid .gpen-chip { justify-content: center; padding: 0 8px; }
 .gpen-row.gpen-chipgrid .gpen-chip i { flex: 0 0 auto; width: 1.4em; text-align: center; }
-.gpen-row.gpen-chipgrid .gpen-chip[data-flag="showCharacter"] { grid-column: 1 / -1; }
+.gpen-row.gpen-chipgrid .gpen-chip[data-flag="showUnified"] { grid-column: 1 / -1; }
 
 /* 설정 펼침 칸: 위 가로 버튼(레이아웃/아이콘 꾸미기)에서 고른 칸만 보임. 칸 안쪽 여백은 위아래 12px로 */
 .gpen-ipane { padding: 12px; }
