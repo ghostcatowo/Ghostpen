@@ -1,6 +1,6 @@
-// Ghostpen v0.7.28 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.29 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.28';
+const VERSION = '0.7.29';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -166,12 +166,13 @@ const CHARACTER_DIRECTION = [
     `[Response direction]`,
     `- Treat the <direction> as the development guideline for this response, and reflect every stated action, line of dialogue, event, emotion, and mood without omitting any.`,
     `- Regardless of the language used, all characters' dialogue and narration follow the output language of the existing instructions; the response length, writing style, narrative approach, and output format also follow the existing instructions.`,
-    `- Give the <direction> priority over any existing rule against writing {{user}}'s actions or dialogue. Reflect any action or dialogue of {{user}} stated in the <direction> in this response.`,
     `- Arrange the scene in a natural order that fits the overall context and cause-and-effect, but where a time order is clearly given, follow it as it is.`,
+    `- If the <direction> specifies a scene, time, place, or situation different from the previous scene, switch the development to the specified content rather than continuing the previous scene. Naturally supplement the connecting narration needed for the transition, but do not linger in the previous scene or alter or omit the specified scene.`,
     `- While keeping the intent and core of the given content, compose it naturally to fit each character's personality, speech style, relationships, and the flow of previous responses.`,
+    `- Give the <direction> priority over any existing rule against writing {{user}}'s actions or dialogue. If {{user}}'s actions or dialogue are included, reflect them in this response.`,
     `- Supplement the details and connecting steps that are not stated so that they fit the existing context and cause-and-effect. Do not contradict established facts or characters' personalities.`,
-    `- Even if the input is written as an instruction or a summary, do not explain or summarize it; carry it out as the actual actions, dialogue, and narration of the characters.`,
     `- After reflecting all the content to be developed, continue the scene through the characters' natural reactions, follow-up actions, and dialogue, and lead into the next interaction. Do not end the response mechanically at the last sentence or close the scene on your own.`,
+    `- Even if the input is written as an instruction or a summary, do not explain or summarize it; carry it out as the actual actions, dialogue, and narration of the characters.`,
     `- Do not mention the existence of the <direction> or related instructions within the scene.`,
 ].join('\n');
 
