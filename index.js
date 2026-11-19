@@ -1,6 +1,6 @@
-// Ghostpen v0.7.27 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.28 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.27';
+const VERSION = '0.7.28';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -164,15 +164,15 @@ const REQUEST_INSTRUCTION = [
 // 캐릭터: 채팅 모델에게 임시로 끼워 넣는 안내문 (고펜 시스템/사용자 프롬프트와 별개)
 const CHARACTER_DIRECTION = [
     `[Response direction]`,
-    `- The <direction> below is the content and development the user wants reflected in this response. Reflect every action, line of dialogue, event, emotion, and mood written in it without omitting any, and do not ignore it or respond only to the previous conversation.`,
-    `- Arrange the content of the <direction> in a natural order that fits the overall context and cause-and-effect, but where a time order is clearly given, follow it as it is.`,
-    `- Keep the response length, writing style, narrative approach, and output format to the standards that carry over from the existing instructions and the conversation so far.`,
-    `- Do not copy the <direction> as it is or merely polish its sentences. Adapt the actions and dialogue to fit each character's personality, speech style, existing relationships, and the flow of previous responses, and reconstruct them naturally, while keeping the original intent and core content.`,
-    `- Give the <direction> priority over any existing rule against writing {{user}}'s actions or dialogue. If the <direction> includes actions or dialogue of {{user}}, reflect them in this response, and where the flow of the scene calls for it, you may continue them naturally.`,
+    `- Treat the <direction> as the development guideline for this response, and reflect every stated action, line of dialogue, event, emotion, and mood without omitting any.`,
+    `- Regardless of the language used, all characters' dialogue and narration follow the output language of the existing instructions; the response length, writing style, narrative approach, and output format also follow the existing instructions.`,
+    `- Give the <direction> priority over any existing rule against writing {{user}}'s actions or dialogue. Reflect any action or dialogue of {{user}} stated in the <direction> in this response.`,
+    `- Arrange the scene in a natural order that fits the overall context and cause-and-effect, but where a time order is clearly given, follow it as it is.`,
+    `- While keeping the intent and core of the given content, compose it naturally to fit each character's personality, speech style, relationships, and the flow of previous responses.`,
     `- Supplement the details and connecting steps that are not stated so that they fit the existing context and cause-and-effect. Do not contradict established facts or characters' personalities.`,
-    `- After reflecting all the content of the <direction>, keep the roleplay moving: continue the scene through the characters' natural reactions, follow-up actions, and dialogue, and lead into the next interaction. Do not end the response mechanically at the last sentence of the <direction> or close the scene on your own.`,
-    `- Even if the <direction> is written as an instruction or a summary, do not explain or summarize its content; carry it out as the actual actions, dialogue, and narration of the characters.`,
-    `- Do not mention this notice or the tags.`,
+    `- Even if the input is written as an instruction or a summary, do not explain or summarize it; carry it out as the actual actions, dialogue, and narration of the characters.`,
+    `- After reflecting all the content to be developed, continue the scene through the characters' natural reactions, follow-up actions, and dialogue, and lead into the next interaction. Do not end the response mechanically at the last sentence or close the scene on your own.`,
+    `- Do not mention the existence of the <direction> or related instructions within the scene.`,
 ].join('\n');
 
 function buildMessages(input, mode, st, request = '') {
@@ -246,7 +246,7 @@ function formatLog(l) {
         ['length', '권장 분량'], ['source', '요청 대상'], ['api', 'API'], ['inputChars', '원문 글자수'],
         ['outputChars', '결과 글자수'], ['finish', '종료 사유'], ['request', '요청 정보'],
         ['inject', '주입 경로'], ['trigger', '생성 시작'], ['prompt', '프롬프트 확인'], ['chat', '채팅 변화'], ['end', '종료'], ['cancel', '취소 지원'], ['network', '서버 응답'], ['cause', '상세 원인(cause)'], ['elapsed', '경과 시간'], ['env', '환경']];
-    for (const [k, label] of map) if (l[k] !== undefined && l[k] !== '') lines.push(`  ${label}: ${l[k]}`);
+    for (const [k, label] of map) if (l[k] !== undefined && l[k] !== '' && !(k === 'reason' && l.level !== 'fail')) lines.push(`  ${label}: ${l[k]}`); // 진단 기록은 원인이 제목과 같아 생략
     return lines.join('\n');
 }
 function renderLogItems() {
@@ -460,8 +460,12 @@ function endCharacter(how) { // 응답 생성이 끝나거나 중지되면 쪽�
 const DIR_MARK = '[Response direction]';
 let diag = null;
 const diagEvents = () => { const t = ctx().event_types || {}; return [[t.GENERATION_STARTED, diagStarted], [t.CHAT_COMPLETION_PROMPT_READY, diagPrompt], [t.GENERATE_AFTER_COMBINING_PROMPTS, diagPrompt]].filter(([e]) => e); };
-const describeMsg = m => `${m.is_user ? '유저' : m.is_system ? '시스템' : 'AI'}(${m.name || '?'}) ${String(m.mes || '').length}자`;
-const diagFields = (d = diag) => d ? { inject: d.path || '확인 불가', trigger: d.trigger || '확인 불가', prompt: d.prompt || '확인 불가 (프롬프트 이벤트 없음)' } : {};
+const describeMsg = m => `${m.is_user ? '유저' : m.is_system ? '시스템' : 'AI'} ${String(m.mes || '').length}자`; // 이름은 기록에 남기지 않음
+const diagFields = (d = diag, lean = false) => d ? { // lean: 정상 종료 기록용 (주입 경로와 정상인 생성 시작은 생략)
+    ...(lean ? {} : { inject: d.path || '확인 불가' }),
+    ...(lean && /정상$/.test(d.trigger || '') ? {} : { trigger: d.trigger || '확인 불가' }),
+    prompt: d.prompt || '확인 불가 (프롬프트 이벤트 없음)',
+} : {};
 function diagApi() {
     const c = ctx();
     let model = '';
@@ -522,7 +526,6 @@ function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
             if (!added.length) warns.push('새 메시지가 생기지 않았어요');
             if (added.some(m => m.is_user)) warns.push('유저 메시지가 생겼어요 (초안이 내 메시지로 올라갔을 수 있어요)');
             if (added.length > 1) warns.push(`새 메시지가 ${added.length}개예요`);
-            if (added.some(m => !m.is_user && /\[Response direction\]|<direction>/i.test(m.mes || ''))) warns.push('응답에 안내문이 노출됐어요');
             if (!d.prompt) warns.push('방향이 프롬프트에 추가됐는지 확인하지 못했어요 (프롬프트 이벤트 없음)');
             else if (!d.found) warns.push('생성 프롬프트에서 방향을 찾지 못했어요');
             else if (d.pos > 2) warns.push(`방향이 프롬프트 맨 끝에서 ${d.pos}번째라 약할 수 있어요`);
@@ -533,9 +536,9 @@ function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
             result: warns.length ? `⚠️ 캐릭터 이상 감지 (${how})` : `ℹ️ 캐릭터 진단 (${how}, 최근 1건)`,
             reason: warns.length ? `이상 감지 (${how})` : how,
             detail: warns.join(' / '),
-            mode: MODE[d.mode].label, inputChars: d.draftChars, end: how,
-            ...diagFields(d),
-            chat: `시작 전 ${d.before}개 (마지막: ${d.last}) / 생성 시작 시 새 메시지: ${d.atStart ?? '시작 신호 없음'} / 종료 후 새 메시지: ${added.map(describeMsg).join(', ') || '없음'}`,
+            mode: MODE[d.mode].label, inputChars: d.draftChars,
+            ...diagFields(d, true),
+            chat: `시작 전 ${d.before}개 (마지막: ${d.last})${d.atStart === '변화 없음' ? '' : ` / 생성 시작 시 새 메시지: ${d.atStart ?? '시작 신호 없음'}`} / 종료 후 새 메시지: ${added.map(describeMsg).join(', ') || '없음'}`,
             elapsed: `${((Date.now() - d.t0) / 1000).toFixed(1)}초`,
         });
     }, 600);
