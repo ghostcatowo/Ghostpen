@@ -1,4 +1,4 @@
-/* Ghostpen v0.7.25 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 index.js의 VERSION을 같이 고칠 것) */
+/* Ghostpen v0.7.26 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 index.js의 VERSION을 같이 고칠 것) */
 /* .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어) */
 
 /* 입력창 위 아이콘 줄 (:where 라서 사용자 CSS가 항상 이김) */
@@ -203,6 +203,7 @@
 
 .gpen-log.fail { border-left-color: #e5534b; }
 .gpen-log.warn { border-left-color: #d4a72c; }
+.gpen-log.info { border-left-color: #4a90d9; }
 
 .gpen-log summary {
     cursor: pointer;

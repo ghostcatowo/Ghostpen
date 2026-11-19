@@ -1,6 +1,6 @@
-// Ghostpen v0.7.25 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.26 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.25';
+const VERSION = '0.7.26';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -164,14 +164,13 @@ const REQUEST_INSTRUCTION = [
 // 캐릭터: 채팅 모델에게 임시로 끼워 넣는 안내문 (고펜 시스템/사용자 프롬프트와 별개)
 const CHARACTER_DIRECTION = [
     `[Response direction]`,
-    `- The <direction> below is the content and development the user wants reflected in this response. Reflect every action, line of dialogue, event, emotion, and mood written in it in this response, without omitting any.`,
-    `- Arrange the content of the direction in a natural order that fits the overall context and cause-and-effect, but where a time order is clearly given, follow it as it is.`,
+    `- The <direction> below is the content and development the user wants reflected in this response. Reflect every action, line of dialogue, event, emotion, and mood written in it without omitting any, and do not ignore it or respond only to the previous conversation.`,
+    `- Arrange the content of the <direction> in a natural order that fits the overall context and cause-and-effect, but where a time order is clearly given, follow it as it is.`,
     `- Keep the response length, writing style, narrative approach, and output format to the standards that carry over from the existing instructions and the conversation so far.`,
-    `- Do not copy the sentences of the <direction> as they are or merely polish the sentences. Adapt the actions and dialogue of each character other than {{user}} to fit that character's personality, speech style, existing relationships, and the flow of previous responses, and reconstruct them naturally, while keeping the original intent and core content.`,
-    `- Write the actions and dialogue of {{user}} that are stated in the <direction> in this response, even where the usual rule says not to write for {{user}}. Use {{user}}'s dialogue exactly as written, without editing or rephrasing it, and reflect {{user}}'s actions naturally in the narration without changing or omitting their content. Do not invent actions or dialogue of {{user}} that are not stated.`,
-    `- Even if the <direction> contains only actions or dialogue of {{user}}, reflect them in this response, then continue with the other characters' reactions and follow-up actions. Do not ignore the <direction> or respond only to the previous conversation.`,
-    `- Supplement the details and connecting steps that are not stated so that they fit the existing context and cause-and-effect. Do not contradict established facts or characters' personalities, and do not add major events or abrupt developments of your own.`,
-    `- After reflecting all the content of the direction, keep the roleplay moving: continue the scene through the characters' natural reactions, follow-up actions, and dialogue, and lead into the next interaction. Do not end the response mechanically at the last sentence of the direction or close the scene on your own.`,
+    `- Do not copy the <direction> as it is or merely polish its sentences. Adapt the actions and dialogue to fit each character's personality, speech style, existing relationships, and the flow of previous responses, and reconstruct them naturally, while keeping the original intent and core content.`,
+    `- Give the <direction> priority over any existing rule against writing {{user}}'s actions or dialogue. If the <direction> includes actions or dialogue of {{user}}, reflect them in this response, and where the flow of the scene calls for it, you may continue them naturally.`,
+    `- Supplement the details and connecting steps that are not stated so that they fit the existing context and cause-and-effect. Do not contradict established facts or characters' personalities.`,
+    `- After reflecting all the content of the <direction>, keep the roleplay moving: continue the scene through the characters' natural reactions, follow-up actions, and dialogue, and lead into the next interaction. Do not end the response mechanically at the last sentence of the <direction> or close the scene on your own.`,
     `- Even if the <direction> is written as an instruction or a summary, do not explain or summarize its content; carry it out as the actual actions, dialogue, and narration of the characters.`,
     `- Do not mention this notice or the tags.`,
 ].join('\n');
@@ -246,14 +245,14 @@ function formatLog(l) {
     const map = [['stage', '단계'], ['reason', '원인'], ['detail', '상세'], ['hint', '해석'], ['mode', '시점'], ['intensity', '강도'],
         ['length', '권장 분량'], ['source', '요청 대상'], ['api', 'API'], ['inputChars', '원문 글자수'],
         ['outputChars', '결과 글자수'], ['finish', '종료 사유'], ['request', '요청 정보'],
-        ['cancel', '취소 지원'], ['network', '서버 응답'], ['cause', '상세 원인(cause)'], ['elapsed', '경과 시간'], ['env', '환경']];
+        ['inject', '주입 경로'], ['trigger', '생성 시작'], ['prompt', '프롬프트 확인'], ['chat', '채팅 변화'], ['end', '종료'], ['cancel', '취소 지원'], ['network', '서버 응답'], ['cause', '상세 원인(cause)'], ['elapsed', '경과 시간'], ['env', '환경']];
     for (const [k, label] of map) if (l[k] !== undefined && l[k] !== '') lines.push(`  ${label}: ${l[k]}`);
     return lines.join('\n');
 }
 function renderLogItems() {
     const logs = S().logs;
     if (!logs.length) return '<div class="gpen-empty gpen-muted">기록이 없어요.</div>';
-    return logs.map((l, i) => `<details class="gpen-log ${l.level === 'warn' ? 'warn' : 'fail'}"><summary>${esc(l.time)} · ${esc(l.reason || l.result)}</summary><div class="gpen-logbody"><button type="button" class="gpen-btn gpen-copy-one" data-i="${i}"><i class="fa-solid fa-copy"></i><span>이 기록 복사</span></button><pre>${esc(formatLog(l))}</pre></div></details>`).join('');
+    return logs.map((l, i) => `<details class="gpen-log ${l.level === 'warn' ? 'warn' : l.level === 'info' ? 'info' : 'fail'}"><summary>${esc(l.time)} · ${esc(l.reason || l.result)}</summary><div class="gpen-logbody"><button type="button" class="gpen-btn gpen-copy-one" data-i="${i}"><i class="fa-solid fa-copy"></i><span>이 기록 복사</span></button><pre>${esc(formatLog(l))}</pre></div></details>`).join('');
 }
 function refreshLogViews() {
     $('.gpen-loglist').html(renderLogItems());
@@ -396,7 +395,7 @@ function cancelRun() { // 진행 중인 대필·캐릭터를 즉시 취소 (알�
     run.cancelled = true;
     if (run.char) { // 채팅 모델 생성은 ST의 중지를 부르고, 입력칸이 비어 있으면 초안을 되돌림
         run = null; setBusy(m, false);
-        stopChatGeneration(); clearDirection(); restoreIfEmpty();
+        diagFinish('취소'); stopChatGeneration(); clearDirection(); restoreIfEmpty();
         return;
     }
     run.controller.abort(); run = null; setBusy(m, false);
@@ -413,7 +412,8 @@ async function setDirection(text) {
     const c = ctx();
     if (typeof c.setExtensionPrompt === 'function') {
         c.setExtensionPrompt(DIR_KEY, text, 1, 0, false, 0); // 위치 1=채팅 안, 깊이 0=맨 끝, 역할 0=system
-    } else if (typeof c.executeSlashCommandsWithOptions === 'function') { // 내부 함수가 없는 버전은 슬래시 명령으로 (| 와 따옴표는 이스케이프)
+        if (diag) diag.path = '내부 함수 setExtensionPrompt (채팅 맨 끝, system)';
+    } else if (typeof c.executeSlashCommandsWithOptions === 'function') { if (diag) diag.path = '슬래시 /inject'; // 내부 함수가 없는 버전은 슬래시 명령으로 (| 와 따옴표는 이스케이프)
         const q = t => t.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\|/g, '\\|');
         await c.executeSlashCommandsWithOptions(text ? `/inject id=${DIR_KEY} position=chat depth=0 role=system ephemeral=true "${q(text)}"` : `/flushinject ${DIR_KEY}`);
     } else throw new Error('주입 기능(setExtensionPrompt)을 찾을 수 없어요. SillyTavern을 업데이트해 주세요.');
@@ -424,8 +424,9 @@ async function startGeneration() {
     const c = ctx();
     if (typeof c.executeSlashCommandsWithOptions === 'function') {
         const r = await c.executeSlashCommandsWithOptions('/trigger');
+        if (diag) diag.trigger = `/trigger 반환: ${r?.isError ? '오류' : r?.isAborted ? '중단' : '정상'}`;
         if (r?.isError || r?.isAborted) throw new Error(r.abortReason || '/trigger 실행에 실패했어요.');
-    } else if (typeof c.generate === 'function') await c.generate('normal');
+    } else if (typeof c.generate === 'function') { if (diag) diag.trigger = 'generate 호출'; await c.generate('normal'); }
     else throw new Error('응답 생성을 시작할 방법을 찾을 수 없어요. SillyTavern을 업데이트해 주세요.');
 }
 function stopChatGeneration() {
@@ -436,9 +437,91 @@ function stopChatGeneration() {
 function restoreIfEmpty() { // 입력칸이 비어 있을 때만 초안을 되돌림 (그 사이 쓴 글을 덮어쓰지 않음)
     if (lastOriginal !== null && !document.getElementById('send_textarea').value) restoreOriginal();
 }
-function endCharacter() { // 응답 생성이 끝나거나 중지되면 쪽지를 빼고 일반 상태로 (원문은 복원용으로 남김)
+function endCharacter(how) { // 응답 생성이 끝나거나 중지되면 쪽지를 빼고 일반 상태로 (원문은 복원용으로 남김)
     clearDirection();
     if (run?.char) { const m = run.mode; run = null; setBusy(m, false); }
+    diagFinish(how);
+}
+
+/* 캐릭터 진단: 실행 중에만 ST 이벤트를 걸고 끝나면 푼다 (평소에는 돌지 않음). 키·토큰은 기록하지 않는다 */
+const DIR_MARK = '[Response direction]';
+let diag = null;
+const diagEvents = () => { const t = ctx().event_types || {}; return [[t.GENERATION_STARTED, diagStarted], [t.CHAT_COMPLETION_PROMPT_READY, diagPrompt], [t.GENERATE_AFTER_COMBINING_PROMPTS, diagPrompt]].filter(([e]) => e); };
+const describeMsg = m => `${m.is_user ? '유저' : m.is_system ? '시스템' : 'AI'}(${m.name || '?'}) ${String(m.mes || '').length}자`;
+const diagFields = (d = diag) => d ? { inject: d.path || '확인 불가', trigger: d.trigger || '확인 불가', prompt: d.prompt || '확인 불가 (프롬프트 이벤트 없음)' } : {};
+function diagApi() {
+    const c = ctx();
+    let model = '';
+    try { model = c.getChatCompletionModel?.() || ''; } catch { /* 무시 */ }
+    return [c.mainApi, c.chatCompletionSettings?.chat_completion_source, model].filter(Boolean).join(' / ');
+}
+function putDiag(entry) { // 정상 진단(info)은 최근 1건만 남김
+    if (entry.level === 'info') S().logs = S().logs.filter(l => l.level !== 'info');
+    addLog({ api: diagApi(), env: `확장 v${VERSION} / ${deviceInfo()}`, ...entry });
+}
+function diagUnhook() {
+    try { const es = ctx().eventSource; for (const [e, fn] of diagEvents()) (es.removeListener || es.off).call(es, e, fn); } catch { /* 무시 */ }
+}
+function diagDrop() { if (!diag) return; clearTimeout(diag.watch); diagUnhook(); diag = null; }
+function diagBegin(mode, draft) {
+    diagDrop();
+    const c = ctx(), chat = c.chat || [], last = chat[chat.length - 1];
+    const d = diag = { mode, t0: Date.now(), before: chat.length, last: last ? describeMsg(last) : '없음', draftChars: draft.length };
+    try { for (const [e, fn] of diagEvents()) c.eventSource.on(e, fn); } catch { /* 진단이 실패해도 본 기능에는 영향 없음 */ }
+    d.watch = setTimeout(() => { // 20초 동안 생성 시작 신호가 없으면 경고
+        if (diag !== d || d.started || d.prompt) return;
+        d.noSignal = true;
+        putDiag({ level: 'warn', result: '⚠️ 캐릭터 생성 신호 없음', reason: '생성 시작 신호 없음', detail: '시작 후 20초 동안 생성 시작 신호가 없어요. 같은 아이콘을 눌러 취소할 수 있어요.', mode: MODE[mode].label, inputChars: draft.length, ...diagFields(d) });
+    }, 20000);
+}
+function diagStarted() { // 생성이 시작된 순간의 채팅 변화 (유저 메시지가 이때 이미 생겼는지 구분)
+    if (!diag || diag.started) return;
+    diag.started = true;
+    diag.atStart = (ctx().chat || []).slice(diag.before).map(describeMsg).join(', ') || '변화 없음';
+}
+function diagPrompt(data) { // 모델로 가는 프롬프트에 방향이 실제로 들어갔는지 (서버 후처리 전 기준)
+    if (!diag || diag.prompt || data?.dryRun) return;
+    const msgs = Array.isArray(data?.chat) ? data.chat : null;
+    if (msgs) {
+        const txt = m => typeof m?.content === 'string' ? m.content : Array.isArray(m?.content) ? m.content.map(x => x?.text || '').join('') : '';
+        let at = -1;
+        for (let i = msgs.length - 1; i >= 0; i--) if (txt(msgs[i]).includes(DIR_MARK)) { at = i; break; }
+        diag.found = at >= 0;
+        diag.prompt = at < 0 ? '프롬프트에 방향이 없음' : `맨 끝에서 ${msgs.length - 1 - at}번째, 역할 ${msgs[at].role}, 그 메시지 ${txt(msgs[at]).length}자 (방향 ${diag.dirChars}자), 전체 ${msgs.length}개, 맨 끝 역할 ${msgs[msgs.length - 1]?.role}`;
+    } else if (typeof data?.prompt === 'string') {
+        const k = data.prompt.lastIndexOf(DIR_MARK);
+        diag.found = k >= 0;
+        diag.prompt = k < 0 ? '프롬프트에 방향이 없음' : `텍스트 완성, 맨 끝에서 ${data.prompt.length - k}자 앞`;
+    }
+}
+function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
+    const d = diag;
+    if (!d) return;
+    clearTimeout(d.watch); diagUnhook(); diag = null;
+    if (how === '채팅 변경') return;
+    setTimeout(() => { // 응답이 채팅에 들어갈 시간을 조금 주고 한 번만 확인
+        const chat = ctx().chat || [];
+        const added = d.before >= 0 ? chat.slice(d.before) : [];
+        const warns = [];
+        if (d.noSignal) warns.push('시작 후 20초 동안 생성 신호가 없었어요');
+        if (how === '정상') {
+            if (!added.length) warns.push('새 메시지가 생기지 않았어요');
+            if (added.some(m => m.is_user)) warns.push('유저 메시지가 생겼어요 (초안이 내 메시지로 올라갔을 수 있어요)');
+            if (added.length > 1) warns.push(`새 메시지가 ${added.length}개예요`);
+            if (added.some(m => !m.is_user && /\[Response direction\]|<direction>/i.test(m.mes || ''))) warns.push('응답에 안내문이 노출됐어요');
+            if (d.prompt && !d.found) warns.push('생성 프롬프트에서 방향을 찾지 못했어요');
+        }
+        putDiag({
+            level: warns.length ? 'warn' : 'info',
+            result: warns.length ? '⚠️ 캐릭터 이상 감지' : 'ℹ️ 캐릭터 진단 (정상, 최근 1건)',
+            reason: warns.length ? '이상 감지' : '정상',
+            detail: warns.join(' / '),
+            mode: MODE[d.mode].label, inputChars: d.draftChars, end: how,
+            ...diagFields(d),
+            chat: `시작 전 ${d.before}개 (마지막: ${d.last}) / 생성 시작 시 새 메시지: ${d.atStart ?? '시작 신호 없음'} / 종료 후 새 메시지: ${added.map(describeMsg).join(', ') || '없음'}`,
+            elapsed: `${((Date.now() - d.t0) / 1000).toFixed(1)}초`,
+        });
+    }, 600);
 }
 async function runCharacter(mode) {
     const ta = document.getElementById('send_textarea');
@@ -451,11 +534,14 @@ async function runCharacter(mode) {
     ta.value = '';
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     updateRestoreUI();
+    diagBegin(mode, draft);
     let stage = '방향 주입';
     try {
         const c = ctx();
         const sub = t => c.substituteParams ? c.substituteParams(t) : t;
-        await setDirection(sub(`${CHARACTER_DIRECTION}\n<direction>\n${draft}\n</direction>`));
+        const dirText = sub(`${CHARACTER_DIRECTION}\n<direction>\n${draft}\n</direction>`);
+        if (diag) diag.dirChars = dirText.length;
+        await setDirection(dirText);
         if (run?.id !== id) { clearDirection(); return; } // 그 사이 취소됨
         stage = '응답 생성 시작';
         await startGeneration();
@@ -463,8 +549,9 @@ async function runCharacter(mode) {
         if (!run || run.id !== id) return; // 취소·중지는 실패 아님
         run = null; setBusy(mode, false);
         clearDirection(); restoreIfEmpty();
+        const f = diagFields(); diagDrop();
         failToast('👻 캐릭터 응답 시작 실패 👻');
-        addLog({ level: 'fail', result: '❌ 실패', stage, reason: e?.name || 'Error', detail: String(e?.message || e).slice(0, 600), mode: MODE.character.label, inputChars: draft.length, env: `확장 v${VERSION} / ${deviceInfo()}` });
+        addLog({ level: 'fail', result: '❌ 실패', stage, reason: e?.name || 'Error', detail: String(e?.message || e).slice(0, 600), mode: MODE[mode].label, inputChars: draft.length, ...f, api: diagApi(), env: `확장 v${VERSION} / ${deviceInfo()}` });
     }
 }
 
@@ -886,9 +973,9 @@ jQuery(() => {
     try { // 전송/채팅 변경 시 원문 삭제
         const { eventSource, event_types } = ctx();
         eventSource.on(event_types.MESSAGE_SENT, () => { cancelGhost(); clearOriginal(); clearDirection(); });
-        eventSource.on(event_types.CHAT_CHANGED, () => { cancelGhost(); endCharacter(); clearOriginal(); });
-        eventSource.on(event_types.GENERATION_ENDED, endCharacter);
-        eventSource.on(event_types.GENERATION_STOPPED, endCharacter);
+        eventSource.on(event_types.CHAT_CHANGED, () => { cancelGhost(); endCharacter('채팅 변경'); clearOriginal(); });
+        eventSource.on(event_types.GENERATION_ENDED, () => endCharacter('정상'));
+        eventSource.on(event_types.GENERATION_STOPPED, () => endCharacter('중지'));
     } catch { /* 무시 */ }
     document.getElementById('send_but')?.addEventListener('click', () => cancelGhost(), true); // 전송 버튼 (대필 중이 아니면 아무 일도 안 함)
     let tries = 0;
