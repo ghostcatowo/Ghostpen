@@ -1,6 +1,6 @@
-// Ghostpen v0.7.32 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.35 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.32';
+const VERSION = '0.7.35';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -32,7 +32,6 @@ const MAX_LOGS = 20;
 let curTab = 'set';
 let advOpen = false;
 let lastOriginal = null; // 직전 원문 (메모리에만 보관)
-let restoreBase = -1;   // 캐릭터 응답이 끝난 시점의 채팅 개수 (이후 메시지가 늘면 복원 아이콘을 지움)
 
 const ctx = () => SillyTavern.getContext();
 function S() {
@@ -375,7 +374,7 @@ async function runGhostpen(mode) {
         if (changed) warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changed}개가 원문과 달라요.`);
 
         stopWatch(); // 결과를 넣을 때 생기는 입력 이벤트로 취소되지 않게
-        setOriginal(rawText); // 요청 줄까지 포함해서 보관
+        lastOriginal = rawText; // 요청 줄까지 포함해서 보관
         ta.value = out;
         ta.dispatchEvent(new Event('input', { bubbles: true }));
         ta.focus();
@@ -465,11 +464,9 @@ function restoreIfEmpty() { // 입력칸이 비어 있을 때만 초안을 되�
     if (lastOriginal !== null && !document.getElementById('send_textarea').value) restoreOriginal();
 }
 function endCharacter(how) { // 응답 생성이 끝나거나 중지되면 쪽지를 빼고 일반 상태로 (원문은 복원용으로 남김)
-    const wasChar = dirOn || !!run?.char || !!diag; // 캐릭터 실행이 끝난 것인지 (일반 생성 종료와 구분)
     clearDirection();
     if (run?.char) { const m = run.mode; run = null; setBusy(m, false); }
     diagFinish(how);
-    if (wasChar && how !== '채팅 변경') setTimeout(armRestoreClear, 600);
 }
 
 /* 캐릭터 진단: 실행 중에만 ST 이벤트를 걸고 끝나면 푼다 (평소에는 돌지 않음). 키·토큰은 기록하지 않는다 */
@@ -566,7 +563,7 @@ async function runCharacter(mode) {
     const id = ++runCounter;
     run = { id, mode, char: true, cancelled: false };
     setBusy(mode, true);
-    if (empty) clearOriginal(); else setOriginal(draft); // 빈 초안은 복원할 원문이 없음
+    if (empty) clearOriginal(); else lastOriginal = draft; // 빈 초안은 복원할 원문이 없음
     ta.value = '';
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     updateRestoreUI();
@@ -620,10 +617,7 @@ function restoreOriginal() {
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     clearOriginal();
 }
-function setOriginal(t) { lastOriginal = t; restoreBase = -1; }
-function clearOriginal() { lastOriginal = null; restoreBase = -1; updateRestoreUI(); }
-function armRestoreClear() { if (lastOriginal !== null) restoreBase = (ctx().chat || []).length; } // 캐릭터 응답이 채팅에 들어간 뒤의 개수를 기준으로 삼음
-function checkRestoreClear() { if (restoreBase >= 0 && (ctx().chat || []).length > restoreBase) clearOriginal(); } // 그 뒤 메시지가 더 들어오면(내 메시지든 다음 응답이든) 복원 아이콘을 지움
+function clearOriginal() { lastOriginal = null; updateRestoreUI(); }
 
 
 /* 아이콘 꾸미기 */
@@ -1008,15 +1002,16 @@ jQuery(() => {
     buildBar();
     addWandItem();
     addDrawer();
-    try { // 전송/채팅 변경 시 원문 삭제, 캐릭터 응답 뒤 메시지가 늘면 복원 아이콘 삭제
+    try { // 전송/채팅 변경 시 원문 삭제
         const { eventSource, event_types } = ctx();
         const missing = [];
         const on = (name, fn, core = true) => { const e = event_types?.[name]; if (e) eventSource.on(e, fn); else if (core) missing.push(name); };
         on('MESSAGE_SENT', () => { cancelGhost(); clearOriginal(); clearDirection(); });
         on('CHAT_CHANGED', () => { cancelGhost(); endCharacter('채팅 변경'); clearOriginal(); });
-        on('GENERATION_ENDED', () => { endCharacter('정상'); checkRestoreClear(); });
+        on('GENERATION_ENDED', () => endCharacter('정상'));
         on('GENERATION_STOPPED', () => endCharacter('중지'));
-        for (const n of ['GENERATION_STARTED', 'USER_MESSAGE_RENDERED', 'MESSAGE_RECEIVED', 'CHARACTER_MESSAGE_RENDERED']) on(n, checkRestoreClear, false); // 하나만 와도 지워지게 여러 신호를 같이 봄
+        // 새 응답 생성이 시작되면 복원 아이콘 삭제 (대필·캐릭터 공통). 스와이프·재생성·이어쓰기·백그라운드 생성과 캐릭터 실행 자신의 생성은 제외
+        on('GENERATION_STARTED', (type, params, dryRun) => { if (!dryRun && lastOriginal !== null && !run?.char && !diag && !['swipe', 'regenerate', 'continue', 'quiet', 'impersonate'].includes(type)) clearOriginal(); }, false);
         if (missing.length) { // 핵심 이벤트가 없으면 기능이 조용히 안 되므로 기록 (같은 내용은 한 건만 유지)
             S().logs = S().logs.filter(l => l.reason !== '이벤트 등록 실패');
             addLog({ level: 'warn', result: '⚠️ 이벤트 등록 실패', reason: '이벤트 등록 실패', detail: `SillyTavern에서 찾지 못한 이벤트: ${missing.join(', ')}`, env: `확장 v${VERSION}` });
