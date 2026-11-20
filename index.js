@@ -1,6 +1,6 @@
-// Ghostpen v0.7.30 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.32 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.30';
+const VERSION = '0.7.32';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -179,6 +179,20 @@ const CHARACTER_DIRECTION = [
 const CHARACTER_LANG_CHECK = [
     `[Language check]`,
     `Respond in the output language specified in the existing instructions, not in the language of the <direction>.`,
+].join('\n');
+
+// 캐릭터: 빈 초안일 때는 방향 대신 이 안내문을 끼워 넣는다 (캐릭터가 먼저 능동적으로 전개)
+const CHARACTER_INITIATIVE_HEADER = `[{{char}}'s POV]`;
+const CHARACTER_INITIATIVE = [
+    CHARACTER_INITIATIVE_HEADER,
+    `- From {{char}}'s POV, continue the current scene without merely reacting to the most recent input or repeating content and dialogue that have already been described.`,
+    `- {{char}} does not merely react passively to the situation; according to their own personality and judgment, they act proactively and take the lead in conversation and interaction.`,
+    `- Keep {{char}}'s personality, speech style, relationships, and emotional state consistent.`,
+    `- Stay within the existing context and situation, and do not force new events or expand the development excessively.`,
+    `- Do not make up {{user}}'s actions, dialogue, emotions, thoughts, or reactions on your own.`,
+    `- The response length, writing style, narrative approach, output format, and output language follow the existing instructions.`,
+    `- Do not end the response mechanically at the last sentence or close the scene on your own; lead into the next interaction.`,
+    `- Do not mention the existence of these instructions within the scene.`,
 ].join('\n');
 
 function buildMessages(input, mode, st, request = '') {
@@ -484,7 +498,7 @@ function diagDrop() { if (!diag) return; clearTimeout(diag.watch); diagUnhook();
 function diagBegin(mode, draft) {
     diagDrop();
     const c = ctx(), chat = c.chat || [], last = chat[chat.length - 1];
-    const d = diag = { mode, t0: Date.now(), before: chat.length, last: last ? describeMsg(last) : '없음', lastUser: !!last?.is_user, draftChars: draft.length };
+    const d = diag = { mode, t0: Date.now(), before: chat.length, last: last ? describeMsg(last) : '없음', lastUser: !!last?.is_user, draftChars: draft.length, empty: !draft.trim() };
     try { for (const [e, fn] of diagEvents()) c.eventSource.on(e, fn); } catch { /* 진단이 실패해도 본 기능에는 영향 없음 */ }
     d.watch = setTimeout(() => { // 20초 동안 생성 시작 신호가 없으면 표시만 해 두고, 기록은 끝날 때 한 건으로 합친다
         if (diag !== d || d.started || d.prompt) return;
@@ -498,16 +512,17 @@ function diagStarted() { // 생성이 시작된 순간의 채팅 변화 (유저 
 }
 function diagPrompt(data) { // 모델로 가는 프롬프트에 방향이 실제로 들어갔는지 (서버 후처리 전 기준)
     if (!diag || diag.prompt || data?.dryRun || pendingDir) return; // 방향을 아직 못 붙였으면 건너뜀
+    const mark = diag.mark || DIR_MARK;
     const msgs = Array.isArray(data?.chat) ? data.chat : null;
     if (msgs) {
         const txt = m => typeof m?.content === 'string' ? m.content : Array.isArray(m?.content) ? m.content.map(x => x?.text || '').join('') : '';
         let at = -1;
-        for (let i = msgs.length - 1; i >= 0; i--) if (txt(msgs[i]).includes(DIR_MARK)) { at = i; break; }
+        for (let i = msgs.length - 1; i >= 0; i--) if (txt(msgs[i]).includes(mark)) { at = i; break; }
         diag.found = at >= 0; diag.pos = msgs.length - 1 - at;
         const tail = msgs.slice(-4).map(m => `${m.role} ${txt(m).length}자`).join(' / ');
         diag.prompt = at < 0 ? '프롬프트에 방향이 없음' : `맨 끝에서 ${diag.pos}번째, 역할 ${msgs[at].role}, 그 메시지 ${txt(msgs[at]).length}자 (방향 ${diag.dirChars}자), 전체 ${msgs.length}개 / 끝 4개: ${tail}`;
     } else if (typeof data?.prompt === 'string') {
-        const k = data.prompt.lastIndexOf(DIR_MARK);
+        const k = data.prompt.lastIndexOf(mark);
         diag.found = k >= 0;
         diag.prompt = k < 0 ? '프롬프트에 방향이 없음' : `텍스트 완성, 맨 끝에서 ${data.prompt.length - k}자 앞`;
     }
@@ -529,7 +544,7 @@ function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
             if (!d.prompt) warns.push('방향이 프롬프트에 추가됐는지 확인하지 못했어요 (프롬프트 이벤트 없음)');
             else if (!d.found) warns.push('생성 프롬프트에서 방향을 찾지 못했어요');
             else if (d.pos > 2) warns.push(`방향이 프롬프트 맨 끝에서 ${d.pos}번째라 약할 수 있어요`);
-            if (d.lastUser) warns.push('시작 전 채팅의 마지막이 유저 메시지였어요');
+            if (d.lastUser && !d.empty) warns.push('시작 전 채팅의 마지막이 유저 메시지였어요');
         }
         if (!warns.length) return; // 이상이 없으면 기록하지 않음
         putDiag({
@@ -547,11 +562,11 @@ function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
 async function runCharacter(mode) {
     const ta = document.getElementById('send_textarea');
     const draft = ta.value;
-    if (!draft.trim()) return; // 빈 초안이면 아무 일 없음
+    const empty = !draft.trim(); // 빈 초안이면 방향 대신 캐릭터 시점 안내문을 넣음
     const id = ++runCounter;
     run = { id, mode, char: true, cancelled: false };
     setBusy(mode, true);
-    setOriginal(draft);
+    if (empty) clearOriginal(); else setOriginal(draft); // 빈 초안은 복원할 원문이 없음
     ta.value = '';
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     updateRestoreUI();
@@ -560,8 +575,8 @@ async function runCharacter(mode) {
     try {
         const c = ctx();
         const sub = t => c.substituteParams ? c.substituteParams(t) : t;
-        const dirText = sub(`${CHARACTER_DIRECTION}\n\n<direction>\n${draft}\n</direction>\n\n${CHARACTER_LANG_CHECK}`);
-        if (diag) diag.dirChars = dirText.length;
+        const dirText = sub(empty ? CHARACTER_INITIATIVE : `${CHARACTER_DIRECTION}\n\n<direction>\n${draft}\n</direction>\n\n${CHARACTER_LANG_CHECK}`);
+        if (diag) { diag.dirChars = dirText.length; diag.mark = empty ? sub(CHARACTER_INITIATIVE_HEADER) : DIR_MARK; } // 진단이 찾을 머리말 (캐릭터 이름이 들어간 상태)
         await setDirection(dirText);
         if (run?.id !== id) { clearDirection(); return; } // 그 사이 취소됨
         stage = '응답 생성 시작';
