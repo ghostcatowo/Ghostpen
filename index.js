@@ -1,6 +1,6 @@
-// Ghostpen v0.7.36 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.37 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.36';
+const VERSION = '0.7.37';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -235,11 +235,12 @@ function extractQuoted(text) {
     return text.match(/"[^"\n]+"|“[^”\n]+”/g) || [];
 }
 
-function explainError(detail) {
+function explainError(detail, timedOut = false) {
+    if (timedOut) return ''; // 시간 초과 문구의 숫자(예: 500초)를 상태 코드로 오해하지 않도록
     const t = detail;
-    // 숫자는 3자리 상태 코드 형태만 본다
+    // 숫자는 HTTP 429, status: 500, "code": 429 처럼 상태 코드로 표시된 것만 본다 (문장 속 우연한 숫자 제외)
     const codes = [];
-    for (const m of detail.matchAll(/\b([1-5]\d\d)\b/g)) codes.push(m[1]);
+    for (const m of detail.matchAll(/(?:HTTP|status(?: code)?|code)\W{0,3}([1-5]\d\d)\b/gi)) codes.push(m[1]);
     const has = re => codes.some(c => re.test(c));
     if (has(/^429$/) || /RESOURCE_EXHAUSTED|rate limit|quota/i.test(t)) return '서버(제공사)의 사용량 한도 초과예요. 확장 문제가 아니에요. 잠시 후 다시 시도하거나 할당량/모델/지역 설정을 확인하세요.';
     if (has(/^40[13]$/) || /UNAUTHENTICATED|PERMISSION_DENIED|api key|credential/i.test(t)) return '인증 또는 권한 문제예요. API 키, 프로젝트, 권한 설정을 확인하세요.';
@@ -394,7 +395,7 @@ async function runGhostpen(mode) {
             level: 'fail', result: '❌ 실패', stage,
             reason: timedOut ? '시간 초과' : (e?.name || 'Error'),
             detail,
-            hint: explainError(detail),
+            hint: explainError(detail, !!timedOut),
             cause: e?.cause ? String(e.cause?.message || e.cause).slice(0, 300) : '',
             ...log, elapsed: `${((Date.now() - t0) / 1000).toFixed(1)}초`,
         });
@@ -551,7 +552,6 @@ function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
         const warns = [];
         if (d.noSignal) warns.push('시작 후 20초 동안 생성 신호가 없었어요');
         if (how === '정상') {
-            if (!added.length) warns.push('새 메시지가 생기지 않았어요');
             if (added.some(m => m.is_user)) warns.push('유저 메시지가 생겼어요 (초안이 내 메시지로 올라갔을 수 있어요)');
             if (added.length > 1) warns.push(`새 메시지가 ${added.length}개예요`);
             if (!d.prompt) warns.push('방향이 프롬프트에 추가됐는지 확인하지 못했어요 (프롬프트 이벤트 없음)');
