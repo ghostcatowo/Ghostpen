@@ -33,6 +33,7 @@ const MAX_LOGS = 20;
 let curTab = 'set';
 let advOpen = false;
 let lastOriginal = null; // 직전 원문 (메모리에만 보관)
+let keepOrigOnce = false; // 주작 전송 직후: 그 전송이 시작하는 응답 생성(GENERATION_STARTED)이 복원 원문을 지우지 않게 한 번만 건너뜀
 
 const ctx = () => SillyTavern.getContext();
 function S() {
@@ -457,6 +458,7 @@ async function applySendDirection(id) { // 주작: 보낸 메시지에서 // 줄
         if (!msg?.is_user || typeof msg.mes !== 'string') return false;
         const { draft, request } = splitRequest(msg.mes);
         if (!request || !draft.trim()) return false; // 첫 줄은 일반 글이어야 함 (// 로 시작하면 ST가 명령어로 처리)
+        lastOriginal = msg.mes; keepOrigOnce = true; updateRestoreUI(); // 주작: // 줄까지 포함한 원문을 복원용으로 보관 (오류·취소로 응답이 안 와도 되살릴 수 있게)
         msg.mes = draft.replace(/\s+$/, '');
         try { c.updateMessageBlock?.(id, msg); } catch { /* 무시 */ }
         await setDirection(c.substituteParams ? c.substituteParams(directionText(request)) : directionText(request));
@@ -633,7 +635,7 @@ function restoreOriginal() {
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     clearOriginal();
 }
-function clearOriginal() { lastOriginal = null; updateRestoreUI(); }
+function clearOriginal() { lastOriginal = null; keepOrigOnce = false; updateRestoreUI(); }
 
 
 /* 아이콘 꾸미기 */
@@ -1029,7 +1031,7 @@ jQuery(() => {
         on('GENERATION_ENDED', () => endCharacter('정상'));
         on('GENERATION_STOPPED', () => endCharacter('중지'));
         // 새 응답 생성이 시작되면 복원 아이콘 삭제 (대필·캐릭터 공통). 스와이프·재생성·이어쓰기·백그라운드 생성과 캐릭터 실행 자신의 생성은 제외
-        on('GENERATION_STARTED', (type, params, dryRun) => { if (!dryRun && lastOriginal !== null && !run?.char && !diag && !['swipe', 'regenerate', 'continue', 'quiet', 'impersonate'].includes(type)) clearOriginal(); }, false);
+        on('GENERATION_STARTED', (type, params, dryRun) => { if (!dryRun && lastOriginal !== null && !run?.char && !diag && !['swipe', 'regenerate', 'continue', 'quiet', 'impersonate'].includes(type)) { if (keepOrigOnce) keepOrigOnce = false; else clearOriginal(); } }, false);
         if (missing.length) { // 핵심 이벤트가 없으면 기능이 조용히 안 되므로 기록 (같은 내용은 한 건만 유지)
             S().logs = S().logs.filter(l => l.reason !== '이벤트 등록 실패');
             addLog({ level: 'warn', result: '⚠️ 이벤트 등록 실패', reason: '이벤트 등록 실패', detail: `SillyTavern에서 찾지 못한 이벤트: ${missing.join(', ')}`, env: `확장 v${VERSION}` });
