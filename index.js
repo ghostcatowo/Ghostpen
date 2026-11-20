@@ -9,7 +9,7 @@ const MODE = {
     first: { label: '1인칭', icon: 'fa-user', flag: 'showFirst' },
     third: { label: '3인칭', icon: 'fa-users', flag: 'showThird' },
     keep:  { label: '고정X', icon: 'fa-ghost', flag: 'showKeep' },
-    character: { label: '캐릭터', icon: 'fa-kiwi-bird', flag: 'showCharacter' }, // 초안을 방향으로 주입해 채팅 모델이 응답 (고펜 프롬프트·강도·분량 안 씀)
+    character: { label: '캐릭터', icon: 'fa-feather-pointed', flag: 'showCharacter' }, // 초안을 방향으로 주입해 채팅 모델이 응답 (고펜 프롬프트·강도·분량 안 씀)
     unified: { label: '올인원', icon: 'fa-layer-group', flag: 'showUnified' }, // 고른 시점(unifiedPick)으로 대필 (캐릭터도 고를 수 있음)
 };
 const DEFAULTS = {
