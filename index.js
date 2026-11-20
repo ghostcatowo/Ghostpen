@@ -1,6 +1,6 @@
-// Ghostpen v0.7.35 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.7.36 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.35';
+const VERSION = '0.7.36';
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
@@ -23,6 +23,7 @@ const DEFAULTS = {
     recent: 5,
     profileId: '',        // '' = 선택 안 함
     timeoutSec: 120,
+    sendDir: 'off',       // 주작: 전송한 메시지의 // 줄을 캐릭터 반응 지시로 쓸지 (on | off)
     logs: [],
     icons: {},            // 아이콘 꾸미기 (바꾼 것만 저장)
     align: 'right',       // 아이콘 줄 정렬: 'left' | 'center' | 'right'
@@ -179,6 +180,8 @@ const CHARACTER_LANG_CHECK = [
     `[Language check]`,
     `Respond in the output language specified in the existing instructions, not in the language of the <direction>.`,
 ].join('\n');
+
+const directionText = d => `${CHARACTER_DIRECTION}\n\n<direction>\n${d}\n</direction>\n\n${CHARACTER_LANG_CHECK}`;
 
 // 캐릭터: 빈 초안일 때는 방향 대신 이 안내문을 끼워 넣는다 (캐릭터가 먼저 능동적으로 전개)
 const CHARACTER_INITIATIVE_HEADER = `[{{char}}'s POV]`;
@@ -446,6 +449,19 @@ async function setDirection(text) {
     dirOn = !!text;
 }
 function clearDirection() { if (!dirOn) return; dirOn = false; setDirection('').catch(() => {}); }
+async function applySendDirection(id) { // 주작: 보낸 메시지에서 // 줄을 떼어 캐릭터 반응 지시로 주입 (주입했으면 true)
+    try {
+        if (S().sendDir !== 'on') return false;
+        const c = ctx(), msg = c.chat?.[id];
+        if (!msg?.is_user || typeof msg.mes !== 'string') return false;
+        const { draft, request } = splitRequest(msg.mes);
+        if (!request || !draft.trim()) return false; // 첫 줄은 일반 글이어야 함 (// 로 시작하면 ST가 명령어로 처리)
+        msg.mes = draft.replace(/\s+$/, '');
+        try { c.updateMessageBlock?.(id, msg); } catch { /* 무시 */ }
+        await setDirection(c.substituteParams ? c.substituteParams(directionText(request)) : directionText(request));
+        return true;
+    } catch { return false; }
+}
 async function startGeneration() {
     const c = ctx();
     if (typeof c.executeSlashCommandsWithOptions === 'function') {
@@ -572,7 +588,7 @@ async function runCharacter(mode) {
     try {
         const c = ctx();
         const sub = t => c.substituteParams ? c.substituteParams(t) : t;
-        const dirText = sub(empty ? CHARACTER_INITIATIVE : `${CHARACTER_DIRECTION}\n\n<direction>\n${draft}\n</direction>\n\n${CHARACTER_LANG_CHECK}`);
+        const dirText = sub(empty ? CHARACTER_INITIATIVE : directionText(draft));
         if (diag) { diag.dirChars = dirText.length; diag.mark = empty ? sub(CHARACTER_INITIATIVE_HEADER) : DIR_MARK; } // 진단이 찾을 머리말 (캐릭터 이름이 들어간 상태)
         await setDirection(dirText);
         if (run?.id !== id) { clearDirection(); return; } // 그 사이 취소됨
@@ -838,11 +854,13 @@ function renderPanel(root) {
             <div class="gpen-hint gpen-muted">글자 수는 공백을 포함하며, 권장 범위예요.</div>
           </details>
 
-          <div class="gpen-field"><label>참고할 최근 채팅 수</label>${step('recent', 0, 50, 1, st.recent)}</div>
+          <div class="gpen-section-title">주작</div>
+          <div class="gpen-row">${segBtn('sendDir', 'on', '켜기')}${segBtn('sendDir', 'off', '끄기')}</div>
 
           <div class="gpen-section-title">생성 설정</div>
           <div class="gpen-field"><label>연결 프로필</label>
             <select class="text_pole" data-k="profileId">${opt('', '선택 안 함', st.profileId)}${profiles.map(p => opt(p.id, p.name, st.profileId)).join('')}</select></div>
+          <div class="gpen-field"><label>참고할 최근 채팅 수</label>${step('recent', 0, 50, 1, st.recent)}</div>
           <div class="gpen-field"><label>시간 제한 (초)</label>${step('timeoutSec', 10, 600, 10, st.timeoutSec)}</div>
         </div>
 
@@ -1006,7 +1024,7 @@ jQuery(() => {
         const { eventSource, event_types } = ctx();
         const missing = [];
         const on = (name, fn, core = true) => { const e = event_types?.[name]; if (e) eventSource.on(e, fn); else if (core) missing.push(name); };
-        on('MESSAGE_SENT', () => { cancelGhost(); clearOriginal(); clearDirection(); });
+        on('MESSAGE_SENT', async id => { cancelGhost(); clearOriginal(); if (!(await applySendDirection(id))) clearDirection(); });
         on('CHAT_CHANGED', () => { cancelGhost(); endCharacter('채팅 변경'); clearOriginal(); });
         on('GENERATION_ENDED', () => endCharacter('정상'));
         on('GENERATION_STOPPED', () => endCharacter('중지'));
