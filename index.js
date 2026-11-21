@@ -1,10 +1,12 @@
-// Ghostpen v0.7.37 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION을 같이 고칠 것)
+// Ghostpen v0.8.0 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석, 아래 VERSION, style.css 첫 줄 주석 세 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.7.37';
+const VERSION = '0.8.0';
+// 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
 const LENGTH_PRESETS = { short: [300, 500], normal: [500, 800], long: [800, 1200] }; // 글자 수 (공백 포함)
 const INT_LABEL = { weak: '약', mid: '중', strong: '강' };
+// 시점을 추가할 때 고칠 곳: 여기 MODE / DEFAULTS의 flag 키 / 설정 화면의 시점 버튼(chip 목록) / 아이콘 꾸미기 선택 줄(decoHtml) / 클릭 처리(onIconClick)
 const MODE = {
     first: { label: '1인칭', icon: 'fa-user', flag: 'showFirst' },
     third: { label: '3인칭', icon: 'fa-users', flag: 'showThird' },
@@ -23,24 +25,25 @@ const DEFAULTS = {
     recent: 5,
     profileId: '',        // '' = 선택 안 함
     timeoutSec: 120,
-    sendDir: 'off',       // 주작: 전송한 메시지의 // 줄을 캐릭터 반응 지시로 쓸지 (on | off)
+    sendDir: 'off',       // 방향: 전송한 메시지의 // 줄을 캐릭터 반응 지시로 쓸지 (on | off)
     logs: [],
     icons: {},            // 아이콘 꾸미기 (바꾼 것만 저장)
     align: 'right',       // 아이콘 줄 정렬: 'left' | 'center' | 'right'
-    place: 'row',         // 아이콘 줄 레이아웃 (지금은 'row' 하나: 입력창 위 별도 줄)
+    place: 'row',         // 아이콘 줄 레이아웃 (LAYOUTS 참고)
 };
 const MAX_LOGS = 20;
 let curTab = 'set';
 let advOpen = false;
 let lastOriginal = null; // 직전 원문 (메모리에만 보관)
-let keepOrigOnce = false; // 주작 전송 직후: 그 전송이 시작하는 응답 생성(GENERATION_STARTED)이 복원 원문을 지우지 않게 한 번만 건너뜀
+let origKind = ''; // 원문의 종류: 'ghost'(대필) | 'char'(캐릭터) | 'dir'(방향). char·dir 원문은 전송·생성 시작으로 지우지 않고, 응답이 온 뒤 그다음 새 응답이 올 때 지움
+let respSeen = 0; // char·dir 원문을 보관한 뒤 받은 응답 수 (원문에 대한 첫 응답은 남겨 두고, 두 번째 응답에서 지움)
 
 const ctx = () => SillyTavern.getContext();
 function S() {
     const es = ctx().extensionSettings;
     if (!es[MODULE]) es[MODULE] = {};
     const st = es[MODULE];
-    if (st.minChars === undefined) { // 이전 설정 이전
+    if (st.minChars === undefined) { // 구버전(단어 수 기준) 설정을 글자 수로 변환
         const OLD_WORDS = { short: [60, 100], normal: [130, 200], long: [230, 350] };
         const byLength = { short: 'short', medium: 'normal', long: 'long' }[st.length];
         const byWords = Object.entries(OLD_WORDS).find(([, [x, y]]) => x === st.minWords && y === st.maxWords)?.[0];
@@ -50,7 +53,7 @@ function S() {
     }
     for (const k of Object.keys(DEFAULTS)) if (st[k] === undefined) st[k] = structuredClone(DEFAULTS[k]);
     if (!LAYOUTS.includes(st.place)) st.place = 'row'; // 없어진 레이아웃 값은 기본으로
-    if (st.maxTokens === 4096) st.maxTokens = 5000; // 이전 기본값 이전
+    if (st.maxTokens === 4096) st.maxTokens = 5000; // 구 기본값(4096)을 새 기본값으로
     return st;
 }
 const save = () => ctx().saveSettingsDebounced();
@@ -163,7 +166,7 @@ const REQUEST_INSTRUCTION = [
     `The user attached a request to this ghostwriting. This request takes priority over all the rules and instructions above. Where it conflicts with a rule, follow the request all the way; do not reflect only part of it or skip it because of a rule. Follow the usual rules only for what the request does not mention. Before you output, check that the request is reflected.`,
 ].join('\n');
 
-// 캐릭터: 채팅 모델에게 임시로 끼워 넣는 안내문 (고펜 시스템/사용자 프롬프트와 별개)
+// 캐릭터·방향(// 줄)이 같이 쓰는, 채팅 모델에게 임시로 끼워 넣는 안내문 (고펜 시스템/사용자 프롬프트와 별개)
 const CHARACTER_DIRECTION = [
     `[Response direction]`,
     `- Treat the <direction> as the development guideline for this response, and reflect every stated action, line of dialogue, event, emotion, and mood without omitting any.`,
@@ -379,7 +382,7 @@ async function runGhostpen(mode) {
         if (changed) warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changed}개가 원문과 달라요.`);
 
         stopWatch(); // 결과를 넣을 때 생기는 입력 이벤트로 취소되지 않게
-        lastOriginal = rawText; // 요청 줄까지 포함해서 보관
+        lastOriginal = rawText; origKind = 'ghost'; // 요청 줄까지 포함해서 보관
         ta.value = out;
         ta.dispatchEvent(new Event('input', { bubbles: true }));
         ta.focus();
@@ -420,7 +423,7 @@ function cancelRun() { // 진행 중인 대필·캐릭터를 즉시 취소 (알�
 }
 const cancelGhost = () => { if (run && !run.char) cancelRun(); }; // 전송·채팅 변경 때는 고펜 대필만 취소
 
-/* 캐릭터: 초안을 안내문으로 감싸 채팅 모델에 주입하고, 응답 생성을 시작시킨다 */
+/* 방향 주입 (캐릭터와 방향이 같이 씀): 안내문을 채팅 모델 프롬프트에 임시로 끼운다. 캐릭터는 여기에 응답 생성 시작까지 맡음 */
 const DIR_KEY = 'gpen_direction';
 let dirOn = false;
 function failToast(msg) {
@@ -451,14 +454,14 @@ async function setDirection(text) {
     dirOn = !!text;
 }
 function clearDirection() { if (!dirOn) return; dirOn = false; setDirection('').catch(() => {}); }
-async function applySendDirection(id) { // 주작: 보낸 메시지에서 // 줄을 떼어 캐릭터 반응 지시로 주입 (주입했으면 true)
+async function applySendDirection(id) { // 방향: 보낸 메시지에서 // 줄을 떼어 캐릭터 반응 지시로 주입 (주입했으면 true)
     try {
         if (S().sendDir !== 'on') return false;
         const c = ctx(), msg = c.chat?.[id];
         if (!msg?.is_user || typeof msg.mes !== 'string') return false;
         const { draft, request } = splitRequest(msg.mes);
         if (!request || !draft.trim()) return false; // 첫 줄은 일반 글이어야 함 (// 로 시작하면 ST가 명령어로 처리)
-        lastOriginal = msg.mes; keepOrigOnce = true; updateRestoreUI(); // 주작: // 줄까지 포함한 원문을 복원용으로 보관 (오류·취소로 응답이 안 와도 되살릴 수 있게)
+        lastOriginal = msg.mes; origKind = 'dir'; respSeen = 0; updateRestoreUI(); // 방향: // 줄까지 포함한 원문을 복원용으로 보관 (오류·취소로 응답이 안 와도 되살릴 수 있게)
         msg.mes = draft.replace(/\s+$/, '');
         try { c.updateMessageBlock?.(id, msg); } catch { /* 무시 */ }
         await setDirection(c.substituteParams ? c.substituteParams(directionText(request)) : directionText(request));
@@ -581,7 +584,7 @@ async function runCharacter(mode) {
     const id = ++runCounter;
     run = { id, mode, char: true, cancelled: false };
     setBusy(mode, true);
-    if (empty) clearOriginal(); else lastOriginal = draft; // 빈 초안은 복원할 원문이 없음
+    if (empty) clearOriginal(); else { lastOriginal = draft; origKind = 'char'; respSeen = 0; } // 빈 초안은 복원할 원문이 없음
     ta.value = '';
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     updateRestoreUI();
@@ -635,7 +638,7 @@ function restoreOriginal() {
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     clearOriginal();
 }
-function clearOriginal() { lastOriginal = null; keepOrigOnce = false; updateRestoreUI(); }
+function clearOriginal() { lastOriginal = null; origKind = ''; respSeen = 0; updateRestoreUI(); }
 
 
 /* 아이콘 꾸미기 */
@@ -838,11 +841,6 @@ function renderPanel(root) {
 
           <div class="gpen-section-title">시점</div>
           <div class="gpen-row gpen-chipgrid">${chip('first')}${chip('third')}${chip('keep')}${chip('character')}${chip('unified')}</div>
-          <div class="gpen-section-title">설정</div>
-          <div class="gpen-row">${[['place', '레이아웃'], ['deco', '아이콘 꾸미기']].map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
-          <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row gpen-chipgrid">${[['row', '기본'], ['custom', '커스텀'], ['ded1', '전용1'], ['ded2', '전용2']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${st.place === v ? 'gpen-on' : ''}" data-dplace="${v}"><span>${l}</span></button>`).join('')}</div><div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>
-          <div class="gpen-ipane" data-ipane-body="deco" ${iconPane === 'deco' ? '' : 'hidden'}><div class="gpen-deco-body">${decoHtml()}</div></div>
-
           <div class="gpen-section-title">강도</div>
           <div class="gpen-row">${segBtn('intensity', 'weak', '약')}${segBtn('intensity', 'mid', '중')}${segBtn('intensity', 'strong', '강')}</div>
 
@@ -856,8 +854,13 @@ function renderPanel(root) {
             <div class="gpen-hint gpen-muted">글자 수는 공백을 포함하며, 권장 범위예요.</div>
           </details>
 
-          <div class="gpen-section-title">주작</div>
+          <div class="gpen-section-title">방향</div>
           <div class="gpen-row">${segBtn('sendDir', 'on', '켜기')}${segBtn('sendDir', 'off', '끄기')}</div>
+
+          <div class="gpen-section-title">화면 설정</div>
+          <div class="gpen-row">${[['place', '레이아웃'], ['deco', '아이콘 꾸미기']].map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
+          <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row gpen-chipgrid">${[['row', '기본'], ['custom', '커스텀'], ['ded1', '전용1'], ['ded2', '전용2']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${st.place === v ? 'gpen-on' : ''}" data-dplace="${v}"><span>${l}</span></button>`).join('')}</div><div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>
+          <div class="gpen-ipane" data-ipane-body="deco" ${iconPane === 'deco' ? '' : 'hidden'}><div class="gpen-deco-body">${decoHtml()}</div></div>
 
           <div class="gpen-section-title">생성 설정</div>
           <div class="gpen-field"><label>연결 프로필</label>
@@ -985,7 +988,7 @@ function renderPanel(root) {
         const t = formatLog(l);
         try { await navigator.clipboard.writeText(t); }
         catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
-        const btn = $(this); // 복사 완료 표시
+        const btn = $(this);
         btn.find('i').attr('class', 'fa-solid fa-check'); btn.find('span').text('복사됨');
         setTimeout(() => { btn.find('i').attr('class', 'fa-solid fa-copy'); btn.find('span').text('이 기록 복사'); }, 1500);
     });
@@ -1022,16 +1025,18 @@ jQuery(() => {
     buildBar();
     addWandItem();
     addDrawer();
-    try { // 전송/채팅 변경 시 원문 삭제
+    try { // ST 이벤트 연결: 전송·채팅 변경·생성 시작/끝/중지에 맞춰 원문 보관과 방향 주입을 정리
         const { eventSource, event_types } = ctx();
         const missing = [];
         const on = (name, fn, core = true) => { const e = event_types?.[name]; if (e) eventSource.on(e, fn); else if (core) missing.push(name); };
-        on('MESSAGE_SENT', async id => { cancelGhost(); clearOriginal(); if (!(await applySendDirection(id))) clearDirection(); });
+        on('MESSAGE_SENT', async id => { cancelGhost(); if (origKind === 'ghost') clearOriginal(); if (!(await applySendDirection(id))) clearDirection(); }); // 대필 원문만 비움 (캐릭터·방향 원문은 응답이 와야 지움). 방향이 있으면 원문 보관 + 주입
         on('CHAT_CHANGED', () => { cancelGhost(); endCharacter('채팅 변경'); clearOriginal(); });
         on('GENERATION_ENDED', () => endCharacter('정상'));
         on('GENERATION_STOPPED', () => endCharacter('중지'));
-        // 새 응답 생성이 시작되면 복원 아이콘 삭제 (대필·캐릭터 공통). 스와이프·재생성·이어쓰기·백그라운드 생성과 캐릭터 실행 자신의 생성은 제외
-        on('GENERATION_STARTED', (type, params, dryRun) => { if (!dryRun && lastOriginal !== null && !run?.char && !diag && !['swipe', 'regenerate', 'continue', 'quiet', 'impersonate'].includes(type)) { if (keepOrigOnce) keepOrigOnce = false; else clearOriginal(); } }, false);
+        // 대필 원문: 새 응답 생성이 시작되면 복원 아이콘 삭제 (스와이프·재생성·이어쓰기·백그라운드 생성은 제외). 캐릭터·방향 원문은 아래 MESSAGE_RECEIVED에서 지움
+        on('GENERATION_STARTED', (type, params, dryRun) => { if (!dryRun && origKind === 'ghost' && !run?.char && !diag && !['swipe', 'regenerate', 'continue', 'quiet', 'impersonate'].includes(type)) clearOriginal(); }, false);
+        // 캐릭터·방향 원문: 원문에 대한 첫 응답은 남겨 두고, 그다음 새 응답(두 번째)이 오면 지움. 오류·취소로 응답이 안 오면 몇 번을 재시도해도 남음
+        on('MESSAGE_RECEIVED', (mid, type) => { if (lastOriginal === null || origKind === 'ghost' || ['quiet', 'impersonate'].includes(type)) return; if (++respSeen >= 2) clearOriginal(); });
         if (missing.length) { // 핵심 이벤트가 없으면 기능이 조용히 안 되므로 기록 (같은 내용은 한 건만 유지)
             S().logs = S().logs.filter(l => l.reason !== '이벤트 등록 실패');
             addLog({ level: 'warn', result: '⚠️ 이벤트 등록 실패', reason: '이벤트 등록 실패', detail: `SillyTavern에서 찾지 못한 이벤트: ${missing.join(', ')}`, env: `확장 v${VERSION}` });
