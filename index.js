@@ -465,7 +465,7 @@ let keptFor = -1; // 그 // 줄을 보낸 유저 메시지의 위치
 const lastUserIdx = () => { const ch = ctx().chat || []; for (let i = ch.length - 1; i >= 0; i--) if (ch[i]?.is_user) return i; return -1; };
 async function reapplyDirection(type, dryRun) {
     try {
-        if (dryRun || keptReq === null || dirOn || pendingDir || run?.char || S().sendDir !== 'on') return; // 이미 붙어 있거나(방금 보낸 경우) 캐릭터 생성 중이면 건너뜀
+        if (dryRun || keptReq === null || pendingDir || run?.char || S().sendDir !== 'on') return; // 방금 보내서 아직 붙일 차례가 남아 있거나 캐릭터 생성 중이면 건너뜀 (이미 붙어 있어도 같은 문구를 다시 붙이는 건 무해해서, 오류 뒤 해제 신호가 안 와도 다시 붙게 함)
         if (!['normal', 'regenerate', 'swipe'].includes(type)) return; // 이어쓰기·백그라운드 생성 등은 제외
         const c = ctx(), ch = c.chat || [];
         if (type === 'normal' && !ch[ch.length - 1]?.is_user) return; // 비행기 재시도는 응답이 아직 없을 때(마지막이 내 메시지)만
