@@ -1,6 +1,6 @@
-// Ghostpen v0.8.2 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.8.3 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.2';
+const VERSION = '0.8.3';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -378,8 +378,13 @@ async function runGhostpen(mode) {
         const warns = [];
         if (/length|max_tokens/i.test(finish)) warns.push('결과가 출력 길이 상한에서 잘렸을 수 있어요.');
         const quoted = request ? [] : extractQuoted(input); // 요청이 있으면 대사 변경이 의도일 수 있어 검사하지 않음
-        const changed = quoted.filter(q => !out.includes(q)).length;
-        if (changed) warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changed}개가 원문과 달라요.`);
+        const changedList = quoted.filter(q => !out.includes(q));
+        if (changedList.length) { // 어떤 대사가 달라졌는지 앞부분만 짧게 보여 줌 (최대 5개, 한 개당 30자)
+            const cut = q => q.length > 30 ? `${q.slice(0, 30)}…` : q;
+            const shown = changedList.slice(0, 5).map(cut).join(' ');
+            const more = changedList.length > 5 ? ` 외 ${changedList.length - 5}개` : '';
+            warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changedList.length}개가 원문과 달라요. 달라진 것: ${shown}${more}`);
+        }
 
         stopWatch(); // 결과를 넣을 때 생기는 입력 이벤트로 취소되지 않게
         lastOriginal = rawText; origKind = 'ghost'; // 요청 줄까지 포함해서 보관
@@ -871,7 +876,7 @@ function renderPanel(root) {
 
         <div class="gpen-pane ${curTab === 'log' ? 'on' : ''}" data-pane="log">
           <div class="gpen-logbar">
-            <span class="gpen-muted">기록은 원문과 결과 내용 없이 개수와 오류만 저장돼요. 최근 ${MAX_LOGS}건까지 보관해요.</span>
+            <span class="gpen-muted">기록은 원문과 결과 내용 없이 개수와 오류만 저장돼요. (단, 달라진 따옴표 내용은 앞부분만 짧게 같이 저장돼요.) 최근 ${MAX_LOGS}건까지 보관해요.</span>
             <button type="button" class="gpen-btn gpen-clear"><i class="fa-solid fa-trash"></i><span>지우기</span></button>
           </div>
           <div class="gpen-loglist">${renderLogItems()}</div>
