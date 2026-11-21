@@ -1,6 +1,6 @@
-// Ghostpen v0.8.0 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석, 아래 VERSION, style.css 첫 줄 주석 세 곳을 같이 고칠 것)
+// Ghostpen v0.8.1 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.0';
+const VERSION = '0.8.1';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -25,7 +25,7 @@ const DEFAULTS = {
     recent: 5,
     profileId: '',        // '' = 선택 안 함
     timeoutSec: 120,
-    sendDir: 'off',       // 방향: 전송한 메시지의 // 줄을 캐릭터 반응 지시로 쓸지 (on | off)
+    sendDir: 'on',        // 방향: 전송한 메시지의 // 줄을 캐릭터 반응 지시로 쓸지 (on | off)
     logs: [],
     icons: {},            // 아이콘 꾸미기 (바꾼 것만 저장)
     align: 'right',       // 아이콘 줄 정렬: 'left' | 'center' | 'right'
