@@ -1,6 +1,6 @@
-// Ghostpen v0.8.4 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.8.6 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.4';
+const VERSION = '0.8.6';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -11,7 +11,7 @@ const MODE = {
     first: { label: '1인칭', icon: 'fa-user', flag: 'showFirst' },
     third: { label: '3인칭', icon: 'fa-users', flag: 'showThird' },
     keep:  { label: '고정X', icon: 'fa-ghost', flag: 'showKeep' },
-    character: { label: '캐릭터', icon: 'fa-feather-pointed', flag: 'showCharacter' }, // 초안을 응답 방향으로 주입해 채팅 모델이 응답 (고펜 프롬프트·강도·분량 안 씀)
+    character: { label: '캐릭터', icon: 'fa-feather-pointed', flag: 'showCharacter' }, // 초안을 방향 지시로 주입해 채팅 모델이 응답 (고펜 프롬프트·강도·분량 안 씀)
     unified: { label: '올인원', icon: 'fa-layer-group', flag: 'showUnified' }, // 고른 시점(unifiedPick)으로 대필 (캐릭터도 고를 수 있음)
 };
 const DEFAULTS = {
@@ -25,7 +25,7 @@ const DEFAULTS = {
     recent: 5,
     profileId: '',        // '' = 선택 안 함
     timeoutSec: 120,
-    sendDir: 'on',        // 응답 방향: 전송한 메시지의 // 줄을 캐릭터 반응 지시로 쓸지 (on | off)
+    sendDir: 'on',        // 방향 지시: 전송한 메시지의 // 줄을 캐릭터 반응 지시로 쓸지 (on | off)
     logs: [],
     icons: {},            // 아이콘 꾸미기 (바꾼 것만 저장)
     align: 'right',       // 아이콘 줄 정렬: 'left' | 'center' | 'right'
@@ -33,9 +33,9 @@ const DEFAULTS = {
 };
 const MAX_LOGS = 20;
 let curTab = 'set';
-let advOpen = false;
+let lenOpen = false, dirOpen = false, genOpen = false; // 설정 접이식 칸 펼침 상태: lenOpen = 글자 수 / dirOpen = 방향 지시 / genOpen = 생성 옵션
 let lastOriginal = null; // 직전 원문 (메모리에만 보관)
-let origKind = ''; // 원문의 종류: 'ghost'(대필) | 'char'(캐릭터) | 'dir'(응답 방향). char·dir 원문은 전송·생성 시작으로 지우지 않고, 응답이 온 뒤 그다음 새 응답이 올 때 지움 (dir은 스와이프·재생성을 응답으로 세지 않음)
+let origKind = ''; // 원문의 종류: 'ghost'(대필) | 'char'(캐릭터) | 'dir'(방향 지시). char·dir 원문은 전송·생성 시작으로 지우지 않고, 응답이 온 뒤 그다음 새 응답이 올 때 지움 (dir은 스와이프·재생성을 응답으로 세지 않음)
 let respSeen = 0; // (예비) 응답 위치 번호를 못 받는 환경에서만 쓰는 응답 수
 let firstRespIdx = -1; // char·dir 원문에 대한 첫 응답이 들어갈 채팅 위치. 이 위치(와 그 스와이프·재생성·중복 신호)는 세지 않고, 그보다 뒤에 새 응답이 오면 지움
 
@@ -167,7 +167,7 @@ const REQUEST_INSTRUCTION = [
     `The user attached a request to this ghostwriting. This request takes priority over all the rules and instructions above. Where it conflicts with a rule, follow the request all the way; do not reflect only part of it or skip it because of a rule. Follow the usual rules only for what the request does not mention. Before you output, check that the request is reflected.`,
 ].join('\n');
 
-// 캐릭터·응답 방향(// 줄)이 같이 쓰는, 채팅 모델에게 임시로 끼워 넣는 안내문 (고펜 시스템/사용자 프롬프트와 별개)
+// 캐릭터·방향 지시(// 줄)이 같이 쓰는, 채팅 모델에게 임시로 끼워 넣는 안내문 (고펜 시스템/사용자 프롬프트와 별개)
 const CHARACTER_DIRECTION = [
     `[Response direction]`,
     `- Treat the <direction> as the development guideline for this response, and reflect every stated action, line of dialogue, event, emotion, and mood without omitting any.`,
@@ -188,7 +188,7 @@ const CHARACTER_LANG_CHECK = [
 
 const directionText = d => `${CHARACTER_DIRECTION}\n\n<direction>\n${d}\n</direction>\n\n${CHARACTER_LANG_CHECK}`;
 
-// 캐릭터: 빈 초안일 때는 응답 방향 대신 이 안내문을 끼워 넣는다 (캐릭터가 먼저 능동적으로 전개)
+// 캐릭터: 빈 초안일 때는 방향 지시 대신 이 안내문을 끼워 넣는다 (캐릭터가 먼저 능동적으로 전개)
 const CHARACTER_INITIATIVE_HEADER = `[{{char}}'s POV]`;
 const CHARACTER_INITIATIVE = [
     CHARACTER_INITIATIVE_HEADER,
@@ -371,7 +371,7 @@ async function runGhostpen(mode) {
         log.outputChars = out.length;
         if (!out) {
             throw new Error(/length|max_tokens/i.test(finish)
-                ? '응답이 비어 있어요. 출력 토큰 상한에 걸렸을 수 있어요. 추론 모델은 생각에도 토큰을 쓰니 고급에서 최대 출력 토큰을 늘려 보세요.'
+                ? '응답이 비어 있어요. 출력 토큰 상한에 걸렸을 수 있어요. 추론 모델은 생각에도 토큰을 쓰니 생성 옵션에서 최대 출력 토큰을 늘려 보세요.'
                 : '응답이 비어 있어요.');
         }
 
@@ -429,13 +429,13 @@ function cancelRun() { // 진행 중인 대필·캐릭터를 즉시 취소 (알�
 }
 const cancelGhost = () => { if (run && !run.char) cancelRun(); }; // 전송·채팅 변경 때는 고펜 대필만 취소
 
-/* 응답 방향 주입 (캐릭터와 응답 방향이 같이 씀): 안내문을 채팅 모델 프롬프트에 임시로 끼운다. 캐릭터는 여기에 응답 생성 시작까지 맡음 */
+/* 방향 지시 주입 (캐릭터와 방향 지시가 같이 씀): 안내문을 채팅 모델 프롬프트에 임시로 끼운다. 캐릭터는 여기에 응답 생성 시작까지 맡음 */
 const DIR_KEY = 'gpen_direction';
 let dirOn = false;
 function failToast(msg) {
     toastr.error(msg)?.css({ 'border-radius': '14px', 'background-color': 'var(--SmartThemeBlurTintColor)', 'background-image': 'none', color: 'var(--SmartThemeBodyColor)', border: '1px solid var(--SmartThemeBorderColor)' });
 }
-let pendingDir = null; // 채팅 완성: 프롬프트가 만들어지는 순간 맨 끝에 붙일 응답 방향 (붙이면 비움)
+let pendingDir = null; // 채팅 완성: 프롬프트가 만들어지는 순간 맨 끝에 붙일 방향 지시 (붙이면 비움)
 const dirEvent = () => ctx().event_types?.CHAT_COMPLETION_PROMPT_READY;
 function dirUnhook() { try { const es = ctx().eventSource; (es.removeListener || es.off).call(es, dirEvent(), dirHook); } catch { /* 무시 */ } }
 function dirHook(data) { // 모델로 보내기 직전의 프롬프트 맨 끝에 유저 메시지로 한 번만 추가
@@ -460,7 +460,7 @@ async function setDirection(text) {
     dirOn = !!text;
 }
 function clearDirection() { if (!dirOn) return; dirOn = false; setDirection('').catch(() => {}); }
-// 응답 방향 유지: 보낸 // 줄을 따로 기억해 두었다가, 오류 뒤 재시도·재생성·스와이프·빈 입력 전송(비행기) 때 다시 붙인다. 새 메시지를 보내거나 채팅을 바꾸거나 캐릭터를 쓰면 지움
+// 방향 지시 유지: 보낸 // 줄을 따로 기억해 두었다가, 오류 뒤 재시도·재생성·스와이프·빈 입력 전송(비행기) 때 다시 붙인다. 새 메시지를 보내거나 채팅을 바꾸거나 캐릭터를 쓰면 지움
 let keptReq = null; // 기억해 둔 // 줄 내용 (캐릭터는 기억하지 않음)
 let keptFor = -1; // 그 // 줄을 보낸 유저 메시지의 위치
 const lastUserIdx = () => { const ch = ctx().chat || []; for (let i = ch.length - 1; i >= 0; i--) if (ch[i]?.is_user) return i; return -1; };
@@ -472,22 +472,22 @@ async function reapplyDirection(type, dryRun) {
         if (type === 'normal' && !ch[ch.length - 1]?.is_user) return; // 비행기 재시도는 응답이 아직 없을 때(마지막이 내 메시지)만
         if (lastUserIdx() !== keptFor) return; // 그 // 줄을 보낸 메시지가 아직 마지막 유저 메시지일 때만
         await setDirection(c.substituteParams ? c.substituteParams(directionText(keptReq)) : directionText(keptReq));
-    } catch { /* 무시 */ }
+    } catch (e) { logDirectionFail('재시도·재생성·스와이프 때 다시 붙이기', e); }
 }
-async function applySendDirection(id) { // 응답 방향: 보낸 메시지에서 // 줄을 떼어 캐릭터 반응 지시로 주입 (주입했으면 true)
+async function applySendDirection(id) { // 방향 지시: 보낸 메시지에서 // 줄을 떼어 캐릭터 반응 지시로 주입 (주입했으면 true)
     try {
         if (S().sendDir !== 'on') return false;
         const c = ctx(), msg = c.chat?.[id];
         if (!msg?.is_user || typeof msg.mes !== 'string') return false;
         const { draft, request } = splitRequest(msg.mes);
         if (!request || !draft.trim()) return false; // 첫 줄은 일반 글이어야 함 (// 로 시작하면 ST가 명령어로 처리)
-        lastOriginal = msg.mes; origKind = 'dir'; respSeen = 0; firstRespIdx = id + 1; updateRestoreUI(); // 응답 방향: // 줄까지 포함한 원문을 복원용으로 보관 (오류·취소로 응답이 안 와도 되살릴 수 있게)
+        lastOriginal = msg.mes; origKind = 'dir'; respSeen = 0; firstRespIdx = id + 1; updateRestoreUI(); // 방향 지시: // 줄까지 포함한 원문을 복원용으로 보관 (오류·취소로 응답이 안 와도 되살릴 수 있게)
         msg.mes = draft.replace(/\s+$/, '');
         try { c.updateMessageBlock?.(id, msg); } catch { /* 무시 */ }
         await setDirection(c.substituteParams ? c.substituteParams(directionText(request)) : directionText(request));
         keptReq = request; keptFor = id; // 재시도·재생성·스와이프용으로 기억
         return true;
-    } catch { return false; }
+    } catch (e) { logDirectionFail('보낸 메시지의 // 줄 주입', e); return false; }
 }
 async function startGeneration() {
     const c = ctx();
@@ -528,6 +528,9 @@ function diagApi() {
     try { model = c.getChatCompletionModel?.() || ''; } catch { /* 무시 */ }
     return [c.mainApi, c.chatCompletionSettings?.chat_completion_source, model].filter(Boolean).join(' / ');
 }
+function logDirectionFail(where, e) { // 방향 지시(// 줄) 주입이 조용히 실패하면 원인을 알 수 없어서 기록 (기록 자체가 실패해도 본 기능에는 영향 없음)
+    try { addLog({ level: 'warn', result: '⚠️ 방향 지시 주입 실패', reason: '방향 지시 주입 실패', stage: where, detail: String(e?.message || e).slice(0, 300), api: diagApi(), env: `확장 v${VERSION}` }); } catch { /* 무시 */ }
+}
 function putDiag(entry) { // 이상(경고)만 기록한다. 정상 종료는 기록하지 않음
     addLog({ api: diagApi(), env: `확장 v${VERSION}`, ...entry });
 }
@@ -538,7 +541,7 @@ function diagDrop() { if (!diag) return; clearTimeout(diag.watch); diagUnhook();
 function diagBegin(mode, draft) {
     diagDrop();
     const c = ctx(), chat = c.chat || [], last = chat[chat.length - 1];
-    const d = diag = { mode, t0: Date.now(), before: chat.length, last: last ? describeMsg(last) : '없음', lastUser: !!last?.is_user, draftChars: draft.length, empty: !draft.trim() };
+    const d = diag = { mode, t0: Date.now(), before: chat.length, last: last ? describeMsg(last) : '없음', draftChars: draft.length };
     try { for (const [e, fn] of diagEvents()) c.eventSource.on(e, fn); } catch { /* 진단이 실패해도 본 기능에는 영향 없음 */ }
     d.watch = setTimeout(() => { // 20초 동안 생성 시작 신호가 없으면 표시만 해 두고, 기록은 끝날 때 한 건으로 합친다
         if (diag !== d || d.started || d.prompt) return;
@@ -550,8 +553,8 @@ function diagStarted() { // 생성이 시작된 순간의 채팅 변화 (유저 
     diag.started = true;
     diag.atStart = (ctx().chat || []).slice(diag.before).map(describeMsg).join(', ') || '변화 없음';
 }
-function diagPrompt(data) { // 모델로 가는 프롬프트에 응답 방향이 실제로 들어갔는지 (서버 후처리 전 기준)
-    if (!diag || diag.prompt || data?.dryRun || pendingDir) return; // 응답 방향을 아직 못 붙였으면 건너뜀
+function diagPrompt(data) { // 모델로 가는 프롬프트에 방향 지시가 실제로 들어갔는지 (서버 후처리 전 기준)
+    if (!diag || diag.prompt || data?.dryRun || pendingDir) return; // 방향 지시를 아직 못 붙였으면 건너뜀
     const mark = diag.mark || DIR_MARK;
     const msgs = Array.isArray(data?.chat) ? data.chat : null;
     if (msgs) {
@@ -560,11 +563,11 @@ function diagPrompt(data) { // 모델로 가는 프롬프트에 응답 방향이
         for (let i = msgs.length - 1; i >= 0; i--) if (txt(msgs[i]).includes(mark)) { at = i; break; }
         diag.found = at >= 0; diag.pos = msgs.length - 1 - at;
         const tail = msgs.slice(-4).map(m => `${m.role} ${txt(m).length}자`).join(' / ');
-        diag.prompt = at < 0 ? '프롬프트에 응답 방향이 없음' : `맨 끝에서 ${diag.pos}번째, 역할 ${msgs[at].role}, 그 메시지 ${txt(msgs[at]).length}자 (응답 방향 ${diag.dirChars}자), 전체 ${msgs.length}개 / 끝 4개: ${tail}`;
+        diag.prompt = at < 0 ? '프롬프트에 방향 지시가 없음' : `맨 끝에서 ${diag.pos}번째, 역할 ${msgs[at].role}, 그 메시지 ${txt(msgs[at]).length}자 (방향 지시 ${diag.dirChars}자), 전체 ${msgs.length}개 / 끝 4개: ${tail}`;
     } else if (typeof data?.prompt === 'string') {
         const k = data.prompt.lastIndexOf(mark);
         diag.found = k >= 0;
-        diag.prompt = k < 0 ? '프롬프트에 응답 방향이 없음' : `텍스트 완성, 맨 끝에서 ${data.prompt.length - k}자 앞`;
+        diag.prompt = k < 0 ? '프롬프트에 방향 지시가 없음' : `텍스트 완성, 맨 끝에서 ${data.prompt.length - k}자 앞`;
     }
 }
 function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
@@ -580,10 +583,9 @@ function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
         if (how === '정상') {
             if (added.some(m => m.is_user)) warns.push('유저 메시지가 생겼어요 (초안이 내 메시지로 올라갔을 수 있어요)');
             if (added.length > 1) warns.push(`새 메시지가 ${added.length}개예요`);
-            if (!d.prompt) warns.push('응답 방향이 프롬프트에 추가됐는지 확인하지 못했어요 (프롬프트 이벤트 없음)');
-            else if (!d.found) warns.push('생성 프롬프트에서 응답 방향을 찾지 못했어요');
-            else if (d.pos > 2) warns.push(`응답 방향이 프롬프트 맨 끝에서 ${d.pos}번째라 약할 수 있어요`);
-            if (d.lastUser && !d.empty) warns.push('시작 전 채팅의 마지막이 유저 메시지였어요');
+            if (!d.prompt) warns.push('방향 지시가 프롬프트에 추가됐는지 확인하지 못했어요 (프롬프트 이벤트 없음)');
+            else if (!d.found) warns.push('생성 프롬프트에서 방향 지시를 찾지 못했어요');
+            else if (d.pos > 2) warns.push(`방향 지시가 프롬프트 맨 끝에서 ${d.pos}번째라 약할 수 있어요`);
         }
         if (!warns.length) return; // 이상이 없으면 기록하지 않음
         putDiag({
@@ -601,9 +603,9 @@ function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
 async function runCharacter(mode) {
     const ta = document.getElementById('send_textarea');
     const draft = ta.value;
-    const empty = !draft.trim(); // 빈 초안이면 응답 방향 대신 캐릭터 시점 안내문을 넣음
+    const empty = !draft.trim(); // 빈 초안이면 방향 지시 대신 캐릭터 시점 안내문을 넣음
     const id = ++runCounter;
-    keptReq = null; // 캐릭터는 응답 방향 유지 대상이 아님 (이전 // 줄이 캐릭터 응답의 스와이프에 붙지 않게)
+    keptReq = null; // 캐릭터는 방향 지시 유지 대상이 아님 (이전 // 줄이 캐릭터 응답의 스와이프에 붙지 않게)
     run = { id, mode, char: true, cancelled: false };
     setBusy(mode, true);
     if (empty) clearOriginal(); else { lastOriginal = draft; origKind = 'char'; respSeen = 0; firstRespIdx = (ctx().chat || []).length; } // 빈 초안은 복원할 원문이 없음
@@ -611,7 +613,7 @@ async function runCharacter(mode) {
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     updateRestoreUI();
     diagBegin(mode, draft);
-    let stage = '응답 방향 주입';
+    let stage = '방향 지시 주입';
     try {
         const c = ctx();
         const sub = t => c.substituteParams ? c.substituteParams(t) : t;
@@ -868,27 +870,33 @@ function renderPanel(root) {
 
           <div class="gpen-section-title">분량</div>
           <div class="gpen-row">${lenBtn('short', '짧게')}${lenBtn('normal', '보통')}${lenBtn('long', '길게')}</div>
-          <details class="gpen-adv" ${advOpen ? 'open' : ''}>
-            <summary>고급</summary>
-            <div class="gpen-field"><label>최소 글자 수</label>${step('minChars', 50, 6000, 50, st.minChars)}</div>
-            <div class="gpen-field"><label>최대 글자 수</label>${step('maxChars', 50, 6000, 50, st.maxChars)}</div>
-            <div class="gpen-field"><label>최대 출력 토큰</label>${step('maxTokens', 1000, 32000, 500, st.maxTokens)}</div>
-            <div class="gpen-hint gpen-muted">글자 수는 공백을 포함하며, 권장 범위예요.</div>
-          </details>
-
-          <div class="gpen-section-title">응답 방향</div>
-          <div class="gpen-row">${segBtn('sendDir', 'on', '켜기')}${segBtn('sendDir', 'off', '끄기')}</div>
 
           <div class="gpen-section-title">화면 설정</div>
           <div class="gpen-row">${[['place', '레이아웃'], ['deco', '아이콘 꾸미기']].map(([k, l]) => `<button type="button" class="gpen-btn gpen-seg ${iconPane === k ? 'gpen-on' : ''}" data-ipane="${k}"><span>${l}</span></button>`).join('')}</div>
           <div class="gpen-ipane" data-ipane-body="place" ${iconPane === 'place' ? '' : 'hidden'}><div class="gpen-row gpen-chipgrid">${[['row', '기본'], ['custom', '커스텀'], ['ded1', '전용1'], ['ded2', '전용2']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${st.place === v ? 'gpen-on' : ''}" data-dplace="${v}"><span>${l}</span></button>`).join('')}</div><div class="gpen-row">${[['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']].map(([v, l]) => `<button type="button" class="gpen-btn gpen-seg ${alignOf(st) === v ? 'gpen-on' : ''}" data-dalign="${v}"><span>${l}</span></button>`).join('')}</div></div>
           <div class="gpen-ipane" data-ipane-body="deco" ${iconPane === 'deco' ? '' : 'hidden'}><div class="gpen-deco-body">${decoHtml()}</div></div>
 
-          <div class="gpen-section-title">생성 설정</div>
-          <div class="gpen-field"><label>연결 프로필</label>
-            <select class="text_pole" data-k="profileId">${opt('', '선택 안 함', st.profileId)}${profiles.map(p => opt(p.id, p.name, st.profileId)).join('')}</select></div>
-          <div class="gpen-field"><label>참고할 최근 채팅 수</label>${step('recent', 0, 50, 1, st.recent)}</div>
-          <div class="gpen-field"><label>시간 제한 (초)</label>${step('timeoutSec', 10, 600, 10, st.timeoutSec)}</div>
+          <div class="gpen-section-title">추가 설정</div>
+          <details class="gpen-fold" data-fold="dir" ${dirOpen ? 'open' : ''}>
+            <summary>방향 지시</summary>
+            <div class="gpen-row">${segBtn('sendDir', 'on', '켜기')}${segBtn('sendDir', 'off', '끄기')}</div>
+          </details>
+
+          <details class="gpen-fold" data-fold="len" ${lenOpen ? 'open' : ''}>
+            <summary>글자 수</summary>
+            <div class="gpen-field"><label>최소</label>${step('minChars', 50, 6000, 50, st.minChars)}</div>
+            <div class="gpen-field"><label>최대</label>${step('maxChars', 50, 6000, 50, st.maxChars)}</div>
+            <div class="gpen-hint gpen-muted">글자 수는 공백을 포함하며, 권장 범위예요.</div>
+          </details>
+
+          <details class="gpen-fold" data-fold="gen" ${genOpen ? 'open' : ''}>
+            <summary>생성 옵션</summary>
+            <div class="gpen-field"><label>연결 프로필</label>
+              <select class="text_pole" data-k="profileId">${opt('', '선택 안 함', st.profileId)}${profiles.map(p => opt(p.id, p.name, st.profileId)).join('')}</select></div>
+            <div class="gpen-field"><label>참고할 최근 채팅 수</label>${step('recent', 0, 50, 1, st.recent)}</div>
+            <div class="gpen-field"><label>시간 제한 (초)</label>${step('timeoutSec', 10, 600, 10, st.timeoutSec)}</div>
+            <div class="gpen-field"><label>최대 출력 토큰</label>${step('maxTokens', 1000, 32000, 500, st.maxTokens)}</div>
+          </details>
         </div>
 
         <div class="gpen-pane ${curTab === 'log' ? 'on' : ''}" data-pane="log">
@@ -933,7 +941,10 @@ function renderPanel(root) {
         save();
         syncLengthUI(root);
     });
-    root.on('click.gpen', '.gpen-adv > summary', function () { advOpen = !$(this).parent().prop('open'); });
+    root.on('click.gpen', '.gpen-fold > summary', function () { // 접이식 칸마다 펼침 상태를 따로 기억 (화면을 다시 그려도 유지)
+        const open = !$(this).parent().prop('open'), f = $(this).parent().attr('data-fold');
+        if (f === 'dir') dirOpen = open; else if (f === 'gen') genOpen = open; else lenOpen = open;
+    });
     root.on('change.gpen', 'select[data-k]', function () { S()[$(this).data('k')] = this.value; save(); });
     const refreshDeco = () => root.find('.gpen-deco-body').html(decoHtml());
     const refreshPreview = () => root.find('.gpen-deco-preview .gpen-icon').attr('style', iconStyle(decoSel) + 'cursor:default').html(iconInner(decoSel));
@@ -1047,19 +1058,19 @@ jQuery(() => {
     buildBar();
     addWandItem();
     addDrawer();
-    try { // ST 이벤트 연결: 전송·채팅 변경·생성 시작/끝/중지에 맞춰 원문 보관과 응답 방향 주입을 정리
+    try { // ST 이벤트 연결: 전송·채팅 변경·생성 시작/끝/중지에 맞춰 원문 보관과 방향 지시 주입을 정리
         const { eventSource, event_types } = ctx();
         const missing = [];
         const on = (name, fn, core = true) => { const e = event_types?.[name]; if (e) eventSource.on(e, fn); else if (core) missing.push(name); };
-        on('MESSAGE_SENT', async id => { cancelGhost(); if (origKind === 'ghost') clearOriginal(); if (!(await applySendDirection(id))) { clearDirection(); keptReq = null; } }); // 대필 원문만 비움 (캐릭터·응답 방향 원문은 응답이 와야 지움). 응답 방향이 있으면 원문 보관 + 주입
+        on('MESSAGE_SENT', async id => { cancelGhost(); if (origKind === 'ghost') clearOriginal(); if (!(await applySendDirection(id))) { clearDirection(); keptReq = null; } }); // 대필 원문만 비움 (캐릭터·방향 지시 원문은 응답이 와야 지움). 방향 지시가 있으면 원문 보관 + 주입
         on('CHAT_CHANGED', () => { cancelGhost(); endCharacter('채팅 변경'); clearOriginal(); keptReq = null; });
         on('GENERATION_ENDED', () => endCharacter('정상'));
         on('GENERATION_STOPPED', () => endCharacter('중지'));
-        // 대필 원문: 새 응답 생성이 시작되면 복원 아이콘 삭제 (스와이프·재생성·이어쓰기·백그라운드 생성은 제외). 캐릭터·응답 방향 원문은 아래 MESSAGE_RECEIVED에서 지움
+        // 대필 원문: 새 응답 생성이 시작되면 복원 아이콘 삭제 (스와이프·재생성·이어쓰기·백그라운드 생성은 제외). 캐릭터·방향 지시 원문은 아래 MESSAGE_RECEIVED에서 지움
         on('GENERATION_STARTED', (type, params, dryRun) => { if (!dryRun && origKind === 'ghost' && !run?.char && !diag && !['swipe', 'regenerate', 'continue', 'quiet', 'impersonate'].includes(type)) clearOriginal(); }, false);
-        // 응답 방향 유지: 생성이 시작될 때 기억해 둔 // 줄을 다시 붙임 (오류 뒤 재시도·재생성·스와이프·빈 입력 전송)
+        // 방향 지시 유지: 생성이 시작될 때 기억해 둔 // 줄을 다시 붙임 (오류 뒤 재시도·재생성·스와이프·빈 입력 전송)
         on('GENERATION_STARTED', (type, params, dryRun) => reapplyDirection(type, dryRun), false);
-        // 캐릭터·응답 방향 원문: 원문에 대한 첫 응답은 남겨 두고, 그다음 새 응답(두 번째)이 오면 지움. 오류·취소로 응답이 안 오면 몇 번을 재시도해도 남음
+        // 캐릭터·방향 지시 원문: 원문에 대한 첫 응답은 남겨 두고, 그다음 새 응답(두 번째)이 오면 지움. 오류·취소로 응답이 안 오면 몇 번을 재시도해도 남음
         on('MESSAGE_RECEIVED', (mid, type) => { // 응답 위치로 판단: 첫 응답 위치(스와이프·재생성·같은 응답의 중복 신호 포함)는 남기고, 그보다 뒤 위치에 AI 응답이 새로 생기면 지움
             if (lastOriginal === null || origKind === 'ghost' || ['quiet', 'impersonate'].includes(type)) return;
             const idx = Number(mid), m = ctx().chat?.[idx];
