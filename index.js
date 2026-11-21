@@ -1,6 +1,6 @@
-// Ghostpen v0.8.3 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.8.4 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.3';
+const VERSION = '0.8.4';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -35,7 +35,7 @@ const MAX_LOGS = 20;
 let curTab = 'set';
 let advOpen = false;
 let lastOriginal = null; // 직전 원문 (메모리에만 보관)
-let origKind = ''; // 원문의 종류: 'ghost'(대필) | 'char'(캐릭터) | 'dir'(응답 방향). char·dir 원문은 전송·생성 시작으로 지우지 않고, 응답이 온 뒤 그다음 새 응답이 올 때 지움
+let origKind = ''; // 원문의 종류: 'ghost'(대필) | 'char'(캐릭터) | 'dir'(응답 방향). char·dir 원문은 전송·생성 시작으로 지우지 않고, 응답이 온 뒤 그다음 새 응답이 올 때 지움 (dir은 스와이프·재생성을 응답으로 세지 않음)
 let respSeen = 0; // char·dir 원문을 보관한 뒤 받은 응답 수 (원문에 대한 첫 응답은 남겨 두고, 두 번째 응답에서 지움)
 
 const ctx = () => SillyTavern.getContext();
@@ -459,6 +459,20 @@ async function setDirection(text) {
     dirOn = !!text;
 }
 function clearDirection() { if (!dirOn) return; dirOn = false; setDirection('').catch(() => {}); }
+// 응답 방향 유지: 보낸 // 줄을 따로 기억해 두었다가, 오류 뒤 재시도·재생성·스와이프·빈 입력 전송(비행기) 때 다시 붙인다. 새 메시지를 보내거나 채팅을 바꾸거나 캐릭터를 쓰면 지움
+let keptReq = null; // 기억해 둔 // 줄 내용 (캐릭터는 기억하지 않음)
+let keptFor = -1; // 그 // 줄을 보낸 유저 메시지의 위치
+const lastUserIdx = () => { const ch = ctx().chat || []; for (let i = ch.length - 1; i >= 0; i--) if (ch[i]?.is_user) return i; return -1; };
+async function reapplyDirection(type, dryRun) {
+    try {
+        if (dryRun || keptReq === null || dirOn || pendingDir || run?.char || S().sendDir !== 'on') return; // 이미 붙어 있거나(방금 보낸 경우) 캐릭터 생성 중이면 건너뜀
+        if (!['normal', 'regenerate', 'swipe'].includes(type)) return; // 이어쓰기·백그라운드 생성 등은 제외
+        const c = ctx(), ch = c.chat || [];
+        if (type === 'normal' && !ch[ch.length - 1]?.is_user) return; // 비행기 재시도는 응답이 아직 없을 때(마지막이 내 메시지)만
+        if (lastUserIdx() !== keptFor) return; // 그 // 줄을 보낸 메시지가 아직 마지막 유저 메시지일 때만
+        await setDirection(c.substituteParams ? c.substituteParams(directionText(keptReq)) : directionText(keptReq));
+    } catch { /* 무시 */ }
+}
 async function applySendDirection(id) { // 응답 방향: 보낸 메시지에서 // 줄을 떼어 캐릭터 반응 지시로 주입 (주입했으면 true)
     try {
         if (S().sendDir !== 'on') return false;
@@ -470,6 +484,7 @@ async function applySendDirection(id) { // 응답 방향: 보낸 메시지에서
         msg.mes = draft.replace(/\s+$/, '');
         try { c.updateMessageBlock?.(id, msg); } catch { /* 무시 */ }
         await setDirection(c.substituteParams ? c.substituteParams(directionText(request)) : directionText(request));
+        keptReq = request; keptFor = id; // 재시도·재생성·스와이프용으로 기억
         return true;
     } catch { return false; }
 }
@@ -587,6 +602,7 @@ async function runCharacter(mode) {
     const draft = ta.value;
     const empty = !draft.trim(); // 빈 초안이면 응답 방향 대신 캐릭터 시점 안내문을 넣음
     const id = ++runCounter;
+    keptReq = null; // 캐릭터는 응답 방향 유지 대상이 아님 (이전 // 줄이 캐릭터 응답의 스와이프에 붙지 않게)
     run = { id, mode, char: true, cancelled: false };
     setBusy(mode, true);
     if (empty) clearOriginal(); else { lastOriginal = draft; origKind = 'char'; respSeen = 0; } // 빈 초안은 복원할 원문이 없음
@@ -1034,14 +1050,17 @@ jQuery(() => {
         const { eventSource, event_types } = ctx();
         const missing = [];
         const on = (name, fn, core = true) => { const e = event_types?.[name]; if (e) eventSource.on(e, fn); else if (core) missing.push(name); };
-        on('MESSAGE_SENT', async id => { cancelGhost(); if (origKind === 'ghost') clearOriginal(); if (!(await applySendDirection(id))) clearDirection(); }); // 대필 원문만 비움 (캐릭터·응답 방향 원문은 응답이 와야 지움). 응답 방향이 있으면 원문 보관 + 주입
-        on('CHAT_CHANGED', () => { cancelGhost(); endCharacter('채팅 변경'); clearOriginal(); });
+        on('MESSAGE_SENT', async id => { cancelGhost(); if (origKind === 'ghost') clearOriginal(); if (!(await applySendDirection(id))) { clearDirection(); keptReq = null; } }); // 대필 원문만 비움 (캐릭터·응답 방향 원문은 응답이 와야 지움). 응답 방향이 있으면 원문 보관 + 주입
+        on('CHAT_CHANGED', () => { cancelGhost(); endCharacter('채팅 변경'); clearOriginal(); keptReq = null; });
         on('GENERATION_ENDED', () => endCharacter('정상'));
         on('GENERATION_STOPPED', () => endCharacter('중지'));
         // 대필 원문: 새 응답 생성이 시작되면 복원 아이콘 삭제 (스와이프·재생성·이어쓰기·백그라운드 생성은 제외). 캐릭터·응답 방향 원문은 아래 MESSAGE_RECEIVED에서 지움
         on('GENERATION_STARTED', (type, params, dryRun) => { if (!dryRun && origKind === 'ghost' && !run?.char && !diag && !['swipe', 'regenerate', 'continue', 'quiet', 'impersonate'].includes(type)) clearOriginal(); }, false);
+        // 응답 방향 유지: 생성이 시작될 때 기억해 둔 // 줄을 다시 붙임 (오류 뒤 재시도·재생성·스와이프·빈 입력 전송)
+        on('GENERATION_STARTED', (type, params, dryRun) => reapplyDirection(type, dryRun), false);
         // 캐릭터·응답 방향 원문: 원문에 대한 첫 응답은 남겨 두고, 그다음 새 응답(두 번째)이 오면 지움. 오류·취소로 응답이 안 오면 몇 번을 재시도해도 남음
-        on('MESSAGE_RECEIVED', (mid, type) => { if (lastOriginal === null || origKind === 'ghost' || ['quiet', 'impersonate'].includes(type)) return; if (++respSeen >= 2) clearOriginal(); });
+        on('MESSAGE_RECEIVED', (mid, type) => { if (lastOriginal === null || origKind === 'ghost' || ['quiet', 'impersonate'].includes(type)) return; if (origKind === 'dir' && ['swipe', 'regenerate'].includes(type)) return; // 응답 방향은 스와이프·재생성을 새 응답으로 세지 않음 (복원 버튼 유지)
+        if (++respSeen >= 2) clearOriginal(); });
         if (missing.length) { // 핵심 이벤트가 없으면 기능이 조용히 안 되므로 기록 (같은 내용은 한 건만 유지)
             S().logs = S().logs.filter(l => l.reason !== '이벤트 등록 실패');
             addLog({ level: 'warn', result: '⚠️ 이벤트 등록 실패', reason: '이벤트 등록 실패', detail: `SillyTavern에서 찾지 못한 이벤트: ${missing.join(', ')}`, env: `확장 v${VERSION}` });
