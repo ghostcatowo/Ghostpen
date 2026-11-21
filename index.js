@@ -36,7 +36,8 @@ let curTab = 'set';
 let advOpen = false;
 let lastOriginal = null; // 직전 원문 (메모리에만 보관)
 let origKind = ''; // 원문의 종류: 'ghost'(대필) | 'char'(캐릭터) | 'dir'(응답 방향). char·dir 원문은 전송·생성 시작으로 지우지 않고, 응답이 온 뒤 그다음 새 응답이 올 때 지움 (dir은 스와이프·재생성을 응답으로 세지 않음)
-let respSeen = 0; // char·dir 원문을 보관한 뒤 받은 응답 수 (원문에 대한 첫 응답은 남겨 두고, 두 번째 응답에서 지움)
+let respSeen = 0; // (예비) 응답 위치 번호를 못 받는 환경에서만 쓰는 응답 수
+let firstRespIdx = -1; // char·dir 원문에 대한 첫 응답이 들어갈 채팅 위치. 이 위치(와 그 스와이프·재생성·중복 신호)는 세지 않고, 그보다 뒤에 새 응답이 오면 지움
 
 const ctx = () => SillyTavern.getContext();
 function S() {
@@ -480,7 +481,7 @@ async function applySendDirection(id) { // 응답 방향: 보낸 메시지에서
         if (!msg?.is_user || typeof msg.mes !== 'string') return false;
         const { draft, request } = splitRequest(msg.mes);
         if (!request || !draft.trim()) return false; // 첫 줄은 일반 글이어야 함 (// 로 시작하면 ST가 명령어로 처리)
-        lastOriginal = msg.mes; origKind = 'dir'; respSeen = 0; updateRestoreUI(); // 응답 방향: // 줄까지 포함한 원문을 복원용으로 보관 (오류·취소로 응답이 안 와도 되살릴 수 있게)
+        lastOriginal = msg.mes; origKind = 'dir'; respSeen = 0; firstRespIdx = id + 1; updateRestoreUI(); // 응답 방향: // 줄까지 포함한 원문을 복원용으로 보관 (오류·취소로 응답이 안 와도 되살릴 수 있게)
         msg.mes = draft.replace(/\s+$/, '');
         try { c.updateMessageBlock?.(id, msg); } catch { /* 무시 */ }
         await setDirection(c.substituteParams ? c.substituteParams(directionText(request)) : directionText(request));
@@ -605,7 +606,7 @@ async function runCharacter(mode) {
     keptReq = null; // 캐릭터는 응답 방향 유지 대상이 아님 (이전 // 줄이 캐릭터 응답의 스와이프에 붙지 않게)
     run = { id, mode, char: true, cancelled: false };
     setBusy(mode, true);
-    if (empty) clearOriginal(); else { lastOriginal = draft; origKind = 'char'; respSeen = 0; } // 빈 초안은 복원할 원문이 없음
+    if (empty) clearOriginal(); else { lastOriginal = draft; origKind = 'char'; respSeen = 0; firstRespIdx = (ctx().chat || []).length; } // 빈 초안은 복원할 원문이 없음
     ta.value = '';
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     updateRestoreUI();
@@ -659,7 +660,7 @@ function restoreOriginal() {
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     clearOriginal();
 }
-function clearOriginal() { lastOriginal = null; origKind = ''; respSeen = 0; updateRestoreUI(); }
+function clearOriginal() { lastOriginal = null; origKind = ''; respSeen = 0; firstRespIdx = -1; updateRestoreUI(); }
 
 
 /* 아이콘 꾸미기 */
@@ -1059,8 +1060,13 @@ jQuery(() => {
         // 응답 방향 유지: 생성이 시작될 때 기억해 둔 // 줄을 다시 붙임 (오류 뒤 재시도·재생성·스와이프·빈 입력 전송)
         on('GENERATION_STARTED', (type, params, dryRun) => reapplyDirection(type, dryRun), false);
         // 캐릭터·응답 방향 원문: 원문에 대한 첫 응답은 남겨 두고, 그다음 새 응답(두 번째)이 오면 지움. 오류·취소로 응답이 안 오면 몇 번을 재시도해도 남음
-        on('MESSAGE_RECEIVED', (mid, type) => { if (lastOriginal === null || origKind === 'ghost' || ['quiet', 'impersonate'].includes(type)) return; if (origKind === 'dir' && ['swipe', 'regenerate'].includes(type)) return; // 응답 방향은 스와이프·재생성을 새 응답으로 세지 않음 (복원 버튼 유지)
-        if (++respSeen >= 2) clearOriginal(); });
+        on('MESSAGE_RECEIVED', (mid, type) => { // 응답 위치로 판단: 첫 응답 위치(스와이프·재생성·같은 응답의 중복 신호 포함)는 남기고, 그보다 뒤 위치에 AI 응답이 새로 생기면 지움
+            if (lastOriginal === null || origKind === 'ghost' || ['quiet', 'impersonate'].includes(type)) return;
+            const idx = Number(mid), m = ctx().chat?.[idx];
+            if (m?.is_user || m?.is_system) return; // 유저·시스템 메시지는 응답이 아님
+            if (Number.isNaN(idx) || firstRespIdx < 0) { if (++respSeen >= 2) clearOriginal(); return; } // 위치를 모르면 예전 방식(응답 수)
+            if (idx > firstRespIdx) clearOriginal();
+        });
         if (missing.length) { // 핵심 이벤트가 없으면 기능이 조용히 안 되므로 기록 (같은 내용은 한 건만 유지)
             S().logs = S().logs.filter(l => l.reason !== '이벤트 등록 실패');
             addLog({ level: 'warn', result: '⚠️ 이벤트 등록 실패', reason: '이벤트 등록 실패', detail: `SillyTavern에서 찾지 못한 이벤트: ${missing.join(', ')}`, env: `확장 v${VERSION}` });
