@@ -1,4 +1,4 @@
-/* Ghostpen v0.8.7 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석의 버전도 index.js와 같이 고칠 것) */
+/* Ghostpen v0.8.8 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석의 버전도 index.js와 같이 고칠 것) */
 /* .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어) */
 
 /* 입력창 위 아이콘 줄 (:where 라서 사용자 CSS가 항상 이김) */
@@ -44,7 +44,7 @@
 .gpen-icon.gpen-restore { display: none; }
 .gpen-icon.gpen-restore.gpen-show { display: inline-flex; }
 
-/* 버튼 */
+/* 버튼 (설정의 버튼·칸 모서리는 모두 12px로 통일) */
 .gpen-btn {
     display: inline-flex;
     align-items: center;
@@ -53,7 +53,7 @@
     min-height: 34px;
     padding: 0 12px;
     border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 999px;
+    border-radius: 12px;
     background: var(--SmartThemeBlurTintColor);
     color: var(--SmartThemeBodyColor);
     font: inherit;
@@ -67,6 +67,7 @@
 .gpen-btn i { margin: 0; line-height: 1; }
 .gpen-btn:hover { border-color: var(--SmartThemeQuoteColor); }
 .gpen-btn.gpen-dim { opacity: 0.4; pointer-events: none; }
+.gpen-btn.gpen-wide { flex: 1 1 100%; } /* 가로 한 줄 전체 */
 
 /* 켜짐/선택 상태 */
 .gpen-chip, .gpen-seg { opacity: 0.55; }
@@ -74,7 +75,7 @@
 
 /* 선택 버튼 (시점·강도·분량 등): 같은 너비, 글자 줄바꿈 없음 */
 .gpen-seg, .gpen-chip { flex: 1 1 0; min-width: 0; padding: 0 4px; white-space: nowrap; }
-.gpen-seg { border-radius: 12px; min-height: 40px; }
+.gpen-seg { min-height: 40px; }
 .gpen-seg span, .gpen-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 설정 패널 */
@@ -130,7 +131,7 @@
 .gpen-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px; /* 버튼 사이·줄 사이 간격은 설정 전체에서 8px로 통일 */
     margin: 0 0 16px;
 }
 
@@ -158,13 +159,14 @@
     margin: 0 0 16px;
     padding: 4px 12px 8px;
     border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 8px;
+    border-radius: 12px;
 }
 
 /* 설정 접이식 칸: 닫혔을 때 높이를 시점 버튼(올인원 칸)과 같은 34px로 맞춤. 칸끼리 간격은 8px */
 .gpen-fold, .gpen-chip { box-sizing: border-box; }
 .gpen-fold { margin-bottom: 8px; padding: 0 12px; min-height: 34px; }
 .gpen-fold[open] { padding-bottom: 8px; }
+.gpen-row + .gpen-fold, .gpen-row ~ .gpen-ipane { margin-top: -8px; } /* 버튼 줄 아래 칸은 줄 사이 간격(8px)과 같게 */
 
 .gpen-fold > summary {
     min-height: 32px;
@@ -212,7 +214,7 @@
     padding: 6px 10px;
     border: 1px solid var(--SmartThemeBorderColor);
     border-left-width: 4px;
-    border-radius: 8px;
+    border-radius: 12px;
 }
 
 .gpen-log.fail { border-left-color: #e5534b; }

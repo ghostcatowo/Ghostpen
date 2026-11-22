@@ -1,6 +1,6 @@
-// Ghostpen v0.8.7 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.8.8 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.7';
+const VERSION = '0.8.8';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -759,7 +759,7 @@ function decoHtml() {
       ${c.kind === 'default' ? colorRow('color', '아이콘 색', c.color) : ''}
       <div class="gpen-field"><label>테두리 모양</label><div class="gpen-row">${Object.entries(SHAPES).map(([v, l]) => seg('dshape', v, l, c.shape)).join('')}</div></div>
       ${c.shape !== 'none' ? colorRow('bcolor', '테두리 색', c.bcolor) : ''}
-      <div class="gpen-row"><button type="button" class="gpen-btn" data-dreset><i class="fa-solid fa-rotate-left"></i><span>이 아이콘 기본값</span></button><button type="button" class="gpen-btn" data-dresetall><i class="fa-solid fa-trash-arrow-up"></i><span>전부 기본값 복원</span></button></div>`;
+      <div class="gpen-row"><button type="button" class="gpen-btn gpen-wide" data-dreset><i class="fa-solid fa-rotate-left"></i><span>이 아이콘 기본값</span></button><button type="button" class="gpen-btn gpen-wide" data-dresetall><i class="fa-solid fa-trash-arrow-up"></i><span>전부 기본값 복원</span></button></div>`;
 }
 
 /* 올인원 아이콘: 짧게 누르면 대필, 0.5초 이상 꾹 누르면 시점 선택 메뉴 */
