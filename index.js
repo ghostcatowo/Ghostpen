@@ -1,6 +1,6 @@
-// Ghostpen v0.8.17 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.8.18 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.17';
+const VERSION = '0.8.18';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -26,6 +26,7 @@ const DEFAULTS = {
     profileId: '',        // '' = 선택 안 함
     timeoutSec: 120,
     sendDir: 'on',        // 방향 지시: 전송한 메시지의 // 줄을 캐릭터 반응 지시로 쓸지 (on | off)
+    punct: 'off',         // 문장 부호: 대필 결과에서 따옴표가 빠진 대사(" ")·속마음(' ')에 따옴표를 붙일지 (on | off). 1·3인칭·고정X 대필에만 적용, 캐릭터는 제외
     logs: [],
     icons: {},            // 아이콘 꾸미기 (바꾼 것만 저장)
     align: 'right',       // 아이콘 줄 정렬: 'left' | 'center' | 'right'
@@ -33,7 +34,7 @@ const DEFAULTS = {
 };
 const MAX_LOGS = 30, MAX_PLAIN = 10; // 정상·취소 기록은 10건까지만 (경고·실패 기록이 밀려나지 않게)
 let curTab = 'set';
-let lenOpen = false, dirOpen = false, genOpen = false; // 설정 접이식 칸 펼침 상태: lenOpen = 글자 수 / dirOpen = 방향 지시 / genOpen = 생성 옵션
+let lenOpen = false, dirOpen = false, genOpen = false, punctOpen = false; // 설정 접이식 칸 펼침 상태: lenOpen = 글자 수 / dirOpen = 방향 지시 / genOpen = 생성 옵션 / punctOpen = 문장 부호
 let lastOriginal = null; // 직전 원문 (메모리에만 보관)
 let origKind = ''; // 원문의 종류: 'ghost'(대필) | 'char'(캐릭터) | 'dir'(방향 지시). char·dir 원문은 전송·생성 시작으로 지우지 않고, 응답이 온 뒤 그다음 새 응답이 올 때 지움 (dir은 스와이프·재생성을 응답으로 세지 않음)
 let respSeen = 0; // (예비) 응답 위치 번호를 못 받는 환경에서만 쓰는 응답 수
@@ -61,13 +62,15 @@ const save = () => ctx().saveSettingsDebounced();
 const matchPreset = st => Object.entries(LENGTH_PRESETS).find(([, [a, b]]) => a === st.minChars && b === st.maxChars)?.[0];
 
 /* 프롬프트 */
+const PRIORITY_LINE = `[Request] -> [Rules] -> [Description] -> [Point of view] -> [Intensity] -> [Length]`;
+const PRIORITY_LINE_PUNCT = `[Request] -> [Rules] -> [Punctuation] -> [Description] -> [Point of view] -> [Intensity] -> [Length]`; // 문장 부호를 켰을 때만 쓰는 우선순위
 const SYSTEM_PROMPT = [
     `[Purpose]`,
     `Ghostwrite the <draft> into a finished passage that can be sent to the RP as is.`,
     ``,
     `[Priority]`,
     `- If rules conflict, follow this order.`,
-    `[Request] -> [Rules] -> [Description] -> [Point of view] -> [Intensity] -> [Length]`,
+    PRIORITY_LINE,
     ``,
     `- If a [Request] is present, it applies before every rule and section in this prompt.`,
     `- If the draft is empty, [Empty draft] applies before [Rules].`,
@@ -101,6 +104,37 @@ const SYSTEM_PROMPT = [
     `- End any narration you newly write with a complete sentence. Dialogue inside double or curly double quotes stays exactly as in the draft, even if the sentence is unfinished.`,
     `- Even when you restructure sentences and paragraphs, separate dialogue and narration with line breaks so they do not run together on one line. Split narration into paragraphs at points where the action, gaze, emotion, or setting shifts, and do not pack several different flows into one paragraph.`,
     `- Before you output, check that the dialogue inside double or curly double quotes matches the draft and that there are no actions, reactions, emotions, or sensations of {{char}} or NPCs that are not in the draft. If anything is off, fix it.`,
+].join('\n');
+
+// 문장 부호 (설정에서 켰을 때만 사용자 메시지의 [Point of view] 바로 뒤에 끼움. 1·3인칭·고정X 대필 전용이고 캐릭터는 이 경로를 쓰지 않음)
+const PUNCTUATION = [
+    `[Punctuation]`,
+    `- This section applies together with the ghostwriting prompt. After the ghostwriting (restructuring and supplementing) is finished, do a final pass over the finished passage and check only the quotation marks of dialogue and inner thoughts.`,
+    `- The priority is after [Request] and [Rules]. Keep following the dialogue preservation rule in [Rules] and the point-of-view rule in [Point of view].`,
+    `- In this section, do not create, remove, or change any dialogue or inner thought. Only add quotation marks to what is already written in the final passage.`,
+    `- Apply this the same way whether the words were in the draft or newly written by the ghostwriting. This includes dialogue and inner thoughts written to reflect the request.`,
+    `- Apply this regardless of the intensity (Light/Medium/Strong).`,
+    ``,
+    `[Dialogue]`,
+    `- Wrap what a character actually says aloud in double quotes (" ").`,
+    `- Judge from speech expressions such as "said", "answered", "asked", "asked back", "muttered", "whispered", "shouted", "yelled", "spat out", "added" and from the context.`,
+    `- Keep the speech verb outside the quotes, and wrap only the words actually spoken.`,
+    `- Dialogue written in the draft without quotation marks is dialogue from the start. Regardless of whether quotation marks are present, do not arbitrarily edit or reword the dialogue.`,
+    ``,
+    `[Inner thoughts]`,
+    `- Wrap what a character thinks silently, without saying it aloud, in single quotes (' ').`,
+    `- Judge from expressions such as "thought", "recalled", "repeated to oneself", "guessed", "wondered", "muttered inwardly" that show thought or an inner reaction, and from the context.`,
+    `- Keep the thought verb outside the quotes, and wrap only the words actually thought.`,
+    `- Do not newly write or speculatively add the inner thoughts of a character that the point-of-view rule does not allow, because of this section.`,
+    ``,
+    `[Judgment and exceptions]`,
+    `- The expressions above are only reference cues for judgment. Do not conclude that something is dialogue or an inner thought merely because one of them appears.`,
+    `- Add quotation marks only when it is clear from the context whether it is dialogue or an inner thought. If it is unclear, do not add them.`,
+    `- Leave dialogue that is already wrapped in double quotes (" ") or curly double quotes (“ ”), and inner thoughts that are already wrapped in single quotes (' '), exactly as they are.`,
+    `- Do not stack quotation marks on top of existing ones or change their shape.`,
+    `- If single quotes are used for another purpose such as a quotation, do not treat it as an inner thought.`,
+    `- Do not add quotation marks to narration, description, sound effects, or onomatopoeia.`,
+    `- In this section, other than adding quotation marks, do not modify or restructure any sentence or paragraph. Line breaks follow the [Output] rules.`,
 ].join('\n');
 
 const PERSPECTIVE = {
@@ -216,6 +250,7 @@ function buildMessages(input, mode, st, request = '') {
         `[Persona of {{user}}: ${c.name1 || ''}]\n${persona || '(none)'}`,
         `[Recent chat]\n${recent || '(none)'}`,
         PERSPECTIVE[mode],
+        ...(st.punct === 'on' ? [PUNCTUATION] : []),
         INTENSITY[st.intensity] || INTENSITY.mid,
         ...(hasInput ? [] : [EMPTY_INSTRUCTION]),
         `[Length]\n- ${st.minChars} to ${st.maxChars} characters, including spaces.\n- If there is a draft, do not add new events or dialogue.\n- Reach the length by describing in concrete detail the process, sensation, setting, atmosphere, and emotion of the actions that are already there. Do not repeat the same content.`,
@@ -224,7 +259,7 @@ function buildMessages(input, mode, st, request = '') {
     ];
     const sub = t => c.substituteParams ? c.substituteParams(t) : t;
     return [
-        { role: 'system', content: sub(SYSTEM_PROMPT) },
+        { role: 'system', content: sub(st.punct === 'on' ? SYSTEM_PROMPT.replace(PRIORITY_LINE, PRIORITY_LINE_PUNCT) : SYSTEM_PROMPT) },
         { role: 'user', content: sub(parts.join('\n\n')) },
     ];
 }
@@ -419,7 +454,7 @@ async function runGhostpen(mode) {
     let model = conn.profile?.model || currentModel();
     // 기록 틀에 채울 값 (공통 틀은 formatLog 참고. 비어 있으면 '해당 없음'으로 표시됨)
     const rec = {
-        modeText: `${mode === 'unified' ? `${MODE.unified.label} (${MODE[pick].label})` : MODE[mode].label} / ${INT_LABEL[st.intensity]}`,
+        modeText: `${mode === 'unified' ? `${MODE.unified.label} (${MODE[pick].label})` : MODE[mode].label} / ${INT_LABEL[st.intensity]}${st.punct === 'on' ? ' / 문장 부호 켬' : ''}`,
         inputText: `${input.length}자 / 요청 줄 ${request ? '있음' : '없음'}`,
         source: conn.kind === 'profile' ? `프로필: ${conn.profile?.name || '찾을 수 없음'}` : '선택 안 함 (지금 사용 중인 연결과 프리셋 그대로)',
         limits: `${maxTokens} / ${Math.max(10, st.timeoutSec)}초`,
@@ -1067,6 +1102,11 @@ function renderPanel(root) {
           <div class="gpen-ipane" data-ipane-body="deco" ${iconPane === 'deco' ? '' : 'hidden'}><div class="gpen-deco-body">${decoHtml()}</div></div>
 
           <div class="gpen-section-title">추가 설정</div>
+          <details class="gpen-fold" data-fold="punct" ${punctOpen ? 'open' : ''}>
+            <summary>문장 부호</summary>
+            <div class="gpen-row">${segBtn('punct', 'on', '켜기')}${segBtn('punct', 'off', '끄기')}</div>
+          </details>
+
           <details class="gpen-fold" data-fold="dir" ${dirOpen ? 'open' : ''}>
             <summary>방향 지시</summary>
             <div class="gpen-row">${segBtn('sendDir', 'on', '켜기')}${segBtn('sendDir', 'off', '끄기')}</div>
@@ -1126,7 +1166,7 @@ function renderPanel(root) {
     });
     root.on('click.gpen', '.gpen-fold > summary', function () { // 접이식 칸마다 펼침 상태를 따로 기억 (화면을 다시 그려도 유지)
         const open = !$(this).parent().prop('open'), f = $(this).parent().attr('data-fold');
-        if (f === 'dir') dirOpen = open; else if (f === 'gen') genOpen = open; else lenOpen = open;
+        if (f === 'dir') dirOpen = open; else if (f === 'gen') genOpen = open; else if (f === 'punct') punctOpen = open; else lenOpen = open;
     });
     root.on('change.gpen', 'select[data-k]', function () { S()[$(this).data('k')] = this.value; save(); });
     const refreshDeco = () => root.find('.gpen-deco-body').html(decoHtml());
