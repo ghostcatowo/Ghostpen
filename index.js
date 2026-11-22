@@ -1,6 +1,6 @@
-// Ghostpen v0.8.18 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.9.0 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.18';
+const VERSION = '0.9.0';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -308,7 +308,7 @@ const WARN_NOTE = {
     length: '오류 아님. 결과가 중간에 끊겼을 수 있으니 확인해 보세요.',
     safety: '오류 아님. 안전 필터 때문에 결과가 막혔거나 잘렸을 수 있으니 확인해 보세요.',
     other: '오류 아님. 이 확장이 모르는 종료 사유예요. 결과를 확인해 보세요.',
-    unknown: '오류 아님. 종료 사유를 받지 못했고 결과가 짧아요. 중간에 끊겼을 수 있으니 확인해 보세요.',
+    unknown: '오류 아님. 종료 사유를 받지 못했고, 결과가 짧은 데다 마무리 부호 없이 끝났어요. 중간에 끊겼을 수 있으니 확인해 보세요.',
 };
 // 정상·경고·오류·취소가 모두 같은 틀과 같은 순서를 씀. 값이 없으면 칸을 지우지 않고 '해당 없음'으로 표시
 function formatLog(l) {
@@ -545,6 +545,8 @@ async function runGhostpen(mode) {
         go('결과 검증');
         const end = classifyEnd(p, maxTokens);
         const short = minC > 0 && out.length < minC * 0.8;
+        const endsClean = /[.?!…~。！？)\]」』”’"'*_>]$/.test(out.replace(/\s+$/, '')); // 글이 마무리 부호(. ? ! … 닫는 따옴표·괄호 등)로 끝났는지
+        const cut = short && !endsClean; // 짧고 마무리 부호 없이 끝남 = 중간에 끊겼을 가능성. 짧아도 문장이 제대로 끝났으면 경고하지 않음 (분량은 권장일 뿐이라 짧게 쓰는 경우가 많음)
         const quoted = request ? [] : extractQuoted(input); // 요청이 있으면 대사 변경이 의도일 수 있어 검사하지 않음
         const changed = quoted.filter(q => !out.includes(q.slice(1, -1))); // 따옴표 종류가 바뀐 것(" → “ ”)은 손상으로 보지 않음. 대사 내용은 기록하지 않고 개수만 남김
         const lastQuoteMissing = quoted.length > 0 && changed.includes(quoted[quoted.length - 1]);
@@ -562,20 +564,21 @@ async function runGhostpen(mode) {
             facts.push(`종료 사유 "${p.finish}"는 이 확장이 분류하지 못했어요`);
         } else if (end.kind === 'unknown') {
             facts.push('API 응답에서 종료 사유를 찾지 못했어요');
-            if (short) {
-                facts.push(`결과 ${out.length}자로 권장 최소 ${minC}자보다 많이 짧아요`);
+            if (cut) {
+                facts.push(`결과 ${out.length}자로 권장 최소 ${minC}자보다 많이 짧고, 마무리 부호 없이 끝났어요`);
                 guess.push('출력 토큰 상한(추론 토큰 포함)에 걸려 잘렸을 가능성이 있지만 확정할 수 없어요');
-            } else facts.push('결과 길이는 정상 범위라 잘렸는지는 확인할 수 없어요');
+            } else if (short) facts.push(`결과 ${out.length}자로 권장 최소 ${minC}자보다 짧지만 문장은 정상적으로 끝났어요 (분량은 권장일 뿐이라 경고하지 않아요)`);
+            else facts.push('결과 길이는 정상 범위라 잘렸는지는 확인할 수 없어요');
         } else if (short) facts.push('정상 종료 신호를 받았지만 권장 분량보다 많이 짧아요');
-        if (lastQuoteMissing && (end.kind === 'length' || (end.kind === 'unknown' && short))) guess.push('마지막 대사가 빠진 것은 글이 중간에 끝난 결과일 수 있어요');
+        if (lastQuoteMissing && (end.kind === 'length' || (end.kind === 'unknown' && cut))) guess.push('마지막 대사가 빠진 것은 글이 중간에 끝난 결과일 수 있어요');
         if (facts.length) rec.fact = facts.join(' / ');
         if (guess.length) rec.guess = guess.join(' / ');
 
-        const problem = ['length', 'safety', 'other'].includes(end.kind) || (end.kind === 'unknown' && short);
+        const problem = ['length', 'safety', 'other'].includes(end.kind) || (end.kind === 'unknown' && cut);
         const okStatus = end.kind === 'ok' ? '정상 완료' : '완료 (종료 사유 미확인)';
         let level = 'info', title = okStatus, endStatus = okStatus, note = '';
         if (problem) {
-            level = 'warn'; title = endStatus = end.kind === 'unknown' ? '종료 사유 미확인 · 결과 짧음' : end.status;
+            level = 'warn'; title = endStatus = end.kind === 'unknown' ? '종료 사유 미확인 · 글이 끊겼을 수 있음' : end.status;
             note = WARN_NOTE[end.kind] + (changed.length ? ' 대사 손상도 확인해 보세요.' : '');
         } else if (changed.length) {
             level = 'warn'; title = `대사 손상 (${quoted.length}개 중 ${changed.length}개)`;
