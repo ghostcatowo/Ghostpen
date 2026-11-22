@@ -1,6 +1,6 @@
-// Ghostpen v0.8.15 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.8.16 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.15';
+const VERSION = '0.8.16';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -1083,7 +1083,6 @@ function renderPanel(root) {
 
         <div class="gpen-pane ${curTab === 'log' ? 'on' : ''}" data-pane="log">
           <div class="gpen-logbar">
-            <span class="gpen-muted">기록은 원문과 결과 내용 없이 글자 수·토큰·오류 같은 정보만 저장돼요. (단, 결과에 없던 따옴표 내용은 앞부분만 짧게 같이 저장돼요.) 최근 ${MAX_LOGS}건까지, 정상·취소 기록은 ${MAX_PLAIN}건까지 보관해요.</span>
             <span style="display:flex;gap:6px"><button type="button" class="gpen-btn gpen-copy-all"><i class="fa-solid fa-copy"></i><span>전체 복사</span></button>
             <button type="button" class="gpen-btn gpen-clear"><i class="fa-solid fa-trash"></i><span>지우기</span></button></span>
           </div>
