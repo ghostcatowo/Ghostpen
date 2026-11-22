@@ -1,4 +1,4 @@
-/* Ghostpen v0.8.13 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석의 버전도 index.js와 같이 고칠 것) */
+/* Ghostpen v0.8.14 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석의 버전도 index.js와 같이 고칠 것) */
 /* .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어) */
 
 /* 입력창 위 아이콘 줄 (:where 라서 사용자 CSS가 항상 이김) */
@@ -94,7 +94,7 @@
 
 .gpen-tab {
     flex: 1;
-    min-height: 38px;
+    min-height: 40px;
     border: 0;
     border-bottom: 2px solid transparent;
     background: transparent;
@@ -152,7 +152,7 @@
     margin: 0 0 16px;
     padding: 4px 12px 8px;
     border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 16px;
+    border-radius: 20px; /* 닫힌 칸이 버튼(알약)과 같은 모양으로 보이게 */
 }
 
 /* 접이식 칸: 닫혔을 때 높이를 버튼과 같은 40px로 맞춤. 설정 접이식 칸끼리 간격은 8px */
@@ -172,7 +172,6 @@
     align-items: center;
     justify-content: center; /* 제목 글자 가운데 정렬 */
     cursor: pointer;
-    opacity: 0.85;
 }
 
 .gpen-fold[open] > summary { margin-bottom: 8px; }
@@ -225,6 +224,7 @@
 .gpen-log.fail { border-left-color: #e5534b; }
 .gpen-log.warn { border-left-color: #d4a72c; }
 .gpen-log.info { border-left-color: #4a90d9; }
+.gpen-log.cancel { border-left-color: #8a8a8a; }
 
 .gpen-log summary {
     cursor: pointer;
@@ -287,7 +287,7 @@
 
 /* 색 입력: 견본 / RGB 숫자 칸 / 슬라이드 바 */
 .gpen-colorrow { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 6px; }
-.gpen-swatch { width: 28px; height: 28px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 6px; flex: 0 0 auto; }
+.gpen-swatch { width: 28px; height: 28px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 8px; flex: 0 0 auto; }
 .gpen-rgb { width: 62px; min-width: 0; margin: 0; flex: 0 0 auto; text-align: center; box-sizing: border-box; }
 .gpen-colortop { display: flex; align-items: center; gap: 10px; }
 .gpen-chrow { display: flex; align-items: center; gap: 10px; }

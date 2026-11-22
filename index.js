@@ -1,6 +1,6 @@
-// Ghostpen v0.8.13 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.8.14 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.13';
+const VERSION = '0.8.14';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -31,7 +31,7 @@ const DEFAULTS = {
     align: 'right',       // 아이콘 줄 정렬: 'left' | 'center' | 'right'
     place: 'row',         // 아이콘 줄 레이아웃 (LAYOUTS 참고)
 };
-const MAX_LOGS = 20;
+const MAX_LOGS = 30, MAX_PLAIN = 10; // 정상·취소 기록은 10건까지만 (경고·실패 기록이 밀려나지 않게)
 let curTab = 'set';
 let lenOpen = false, dirOpen = false, genOpen = false; // 설정 접이식 칸 펼침 상태: lenOpen = 글자 수 / dirOpen = 방향 지시 / genOpen = 생성 옵션
 let lastOriginal = null; // 직전 원문 (메모리에만 보관)
@@ -240,19 +240,19 @@ function extractQuoted(text) {
     return text.match(/"[^"\n]+"|“[^”\n]+”/g) || [];
 }
 
-function explainError(detail, timedOut = false) {
-    if (timedOut) return ''; // 시간 초과 문구의 숫자(예: 500초)를 상태 코드로 오해하지 않도록
+function classifyError(detail, timedOut = false) { // 오류 제목과 해석 (확실한 것만)
+    if (timedOut) return { title: '', hint: '' }; // 시간 초과 문구의 숫자(예: 500초)를 상태 코드로 오해하지 않도록
     const t = detail;
     // 숫자는 HTTP 429, status: 500, "code": 429 처럼 상태 코드로 표시된 것만 본다 (문장 속 우연한 숫자 제외)
     const codes = [];
     for (const m of detail.matchAll(/(?:HTTP|status(?: code)?|code)\W{0,3}([1-5]\d\d)\b/gi)) codes.push(m[1]);
     const has = re => codes.some(c => re.test(c));
-    if (has(/^429$/) || /RESOURCE_EXHAUSTED|rate limit|quota/i.test(t)) return '서버(제공사)의 사용량 한도 초과예요. 확장 문제가 아니에요. 잠시 후 다시 시도하거나 할당량/모델/지역 설정을 확인하세요.';
-    if (has(/^40[13]$/) || /UNAUTHENTICATED|PERMISSION_DENIED|api key|credential/i.test(t)) return '인증 또는 권한 문제예요. API 키, 프로젝트, 권한 설정을 확인하세요.';
-    if (has(/^404$/) || /NOT_FOUND/i.test(t)) return '모델 또는 지역(엔드포인트)을 찾을 수 없어요. 모델 이름과 지역 설정을 확인하세요.';
-    if (has(/^400$/) || /INVALID_ARGUMENT/i.test(t)) return '요청 형식이 거절됐어요. 모델이 지원하지 않는 설정이 있을 수 있어요.';
-    if (has(/^5\d\d$/) || /UNAVAILABLE|INTERNAL/i.test(t)) return '서버 쪽 오류예요. 잠시 후 다시 시도하세요.';
-    return '';
+    if (has(/^429$/) || /RESOURCE_EXHAUSTED|rate limit|quota/i.test(t)) return { title: '사용량 한도 초과', hint: '서버(제공사)의 사용량 한도 초과예요. 확장 문제가 아니에요. 잠시 후 다시 시도하거나 할당량/모델/지역 설정을 확인하세요.' };
+    if (has(/^40[13]$/) || /UNAUTHENTICATED|PERMISSION_DENIED|api key|credential/i.test(t)) return { title: '인증 또는 권한 오류', hint: '인증 또는 권한 문제예요. API 키, 프로젝트, 권한 설정을 확인하세요.' };
+    if (has(/^404$/) || /NOT_FOUND/i.test(t)) return { title: '모델 또는 지역을 찾을 수 없음', hint: '모델 또는 지역(엔드포인트)을 찾을 수 없어요. 모델 이름과 지역 설정을 확인하세요.' };
+    if (has(/^400$/) || /INVALID_ARGUMENT/i.test(t)) return { title: '요청 형식 거절', hint: '요청 형식이 거절됐어요. 모델이 지원하지 않는 설정이 있을 수 있어요.' };
+    if (has(/^5\d\d$/) || /UNAVAILABLE|INTERNAL/i.test(t)) return { title: '서버 오류', hint: '서버 쪽 오류예요. 잠시 후 다시 시도하세요.' };
+    return { title: '', hint: '' };
 }
 
 /* 기록 */
@@ -260,16 +260,43 @@ function addLog(entry) {
     const st = S();
     const clean = {};
     for (const [k, v] of Object.entries(entry)) clean[k] = typeof v === 'string' ? maskSecrets(v) : v;
-    st.logs.unshift({ time: new Date().toLocaleString('ko-KR'), ...clean });
-    st.logs = st.logs.slice(0, MAX_LOGS);
+    st.logs.unshift({ time: new Date().toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }), ...clean });
+    let plain = 0;
+    st.logs = st.logs.filter(l => (l.level === 'info' || l.level === 'cancel') ? ++plain <= MAX_PLAIN : true).slice(0, MAX_LOGS);
     save();
     refreshLogViews();
 }
+const HEAD = { info: '정상', warn: '경고', fail: '오류', cancel: '취소' };
+const NA = '해당 없음', NOAPI = 'API 미제공'; // 해당 없음 = 이 상황엔 필요 없는 칸 / API 미제공 = 받으려 했는데 응답에 없던 칸
+const WARN_NOTE = {
+    length: '오류 아님. 결과가 중간에 끊겼을 수 있으니 확인해 보세요.',
+    safety: '오류 아님. 안전 필터 때문에 결과가 막혔거나 잘렸을 수 있으니 확인해 보세요.',
+    other: '오류 아님. 이 확장이 모르는 종료 사유예요. 결과를 확인해 보세요.',
+    unknown: '오류 아님. 종료 사유를 받지 못했고 결과가 짧아요. 중간에 끊겼을 수 있으니 확인해 보세요.',
+};
+// 정상·경고·오류·취소가 모두 같은 틀과 같은 순서를 씀. 값이 없으면 칸을 지우지 않고 '해당 없음'으로 표시
 function formatLog(l) {
+    if (l.v !== 2) return formatLogOld(l);
+    const row = (k, v) => ` ${k}: ${v === undefined || v === null || v === '' ? NA : v}`;
+    const out = [`[${HEAD[l.level] || '오류'}] ${l.title}  (${l.time})`];
+    if (l.note) out.push(`※ ${l.note}`);
+    out.push('', '■ 결과', row('종료 상태', l.endStatus), row('종료 사유 (원본)', l.finish), row('결과 글자수', l.chars), row('대필 소요 시간', l.timeText),
+        row('토큰', l.tokens), row('오류 내용', l.error), row('취소 경로', l.cancelBy));
+    out.push('', '■ 진단', row('확인된 사실', l.fact), row('추정 (확정 아님)', l.guess), row('대사 검사', l.quote));
+    for (const [k, label] of [['inject', '주입 경로'], ['trigger', '생성 시작'], ['prompt', '프롬프트 확인'], ['chat', '채팅 변화']]) if (l[k]) out.push(row(label, l[k])); // 캐릭터 모드에서만 채워짐
+    if (l.shape) out.push(row('응답 구조', l.shape));
+    out.push('', '■ 요청', row('시점 / 강도', l.modeText), row('원문', l.inputText), row('요청 대상', l.source), row('API / 모델', l.apiModel),
+        row('요청 정보', l.request), row('최대 출력 토큰 / 시간 제한', l.limits));
+    out.push('', `■ 진행: ${l.steps || NA}`, `■ 환경: ${l.env || NA}`);
+    return out.join('\n');
+}
+function formatLogOld(l) {
     const lines = [`[${l.time}] ${l.result}`];
-    const map = [['stage', '단계'], ['reason', '원인'], ['detail', '상세'], ['hint', '해석'], ['mode', '시점'], ['intensity', '강도'],
-        ['length', '권장 분량'], ['source', '요청 대상'], ['api', 'API'], ['inputChars', '원문 글자수'],
-        ['outputChars', '결과 글자수'], ['finish', '종료 사유'], ['request', '요청 정보'],
+    const map = [['status', '종료 상태'], ['stage', '단계'], ['steps', '진행 단계'], ['reason', '원인'], ['detail', '상세'], ['hint', '해석'],
+        ['fact', '확인된 사실'], ['guess', '추정 (확정 아님)'], ['note', '참고'], ['cancelBy', '취소 경로'], 
+        ['mode', '시점'], ['intensity', '강도'], ['length', '권장 분량'], ['source', '요청 대상'], ['api', 'API'], ['model', '모델'], 
+        ['inputChars', '원문 글자수'], ['outputChars', '결과 글자수'], 
+        ['finish', '종료 사유 원본'], ['usage', '토큰 사용량'], ['shape', '응답 구조'], ['request', '요청 정보'],
         ['inject', '주입 경로'], ['trigger', '생성 시작'], ['prompt', '프롬프트 확인'], ['chat', '채팅 변화'], ['end', '종료'], ['cause', '상세 원인(cause)'], ['elapsed', '경과 시간'], ['env', '환경']];
     for (const [k, label] of map) if (l[k] !== undefined && l[k] !== '' && !(k === 'reason' && l.level !== 'fail')) lines.push(`  ${label}: ${l[k]}`); // 진단 기록은 원인이 제목과 같아 생략
     return lines.join('\n');
@@ -277,7 +304,9 @@ function formatLog(l) {
 function renderLogItems() {
     const logs = S().logs;
     if (!logs.length) return '<div class="gpen-empty gpen-muted">기록이 없어요.</div>';
-    return logs.map((l, i) => `<details class="gpen-log ${l.level === 'warn' ? 'warn' : l.level === 'info' ? 'info' : 'fail'}"><summary>${esc(l.time)} · ${esc(l.reason || l.result)}</summary><div class="gpen-logbody"><button type="button" class="gpen-btn gpen-copy-one" data-i="${i}"><i class="fa-solid fa-copy"></i><span>이 기록 복사</span></button><pre>${esc(formatLog(l))}</pre></div></details>`).join('');
+    const sum = l => `[${HEAD[l.level] || '오류'}] ${l.time} · ${l.title || l.status || l.reason || l.result}`;
+    const cls = l => ({ warn: 'warn', info: 'info', cancel: 'cancel' }[l.level] || 'fail');
+    return logs.map((l, i) => `<details class="gpen-log ${cls(l)}"><summary>${esc(sum(l))}</summary><div class="gpen-logbody"><button type="button" class="gpen-btn gpen-copy-one" data-i="${i}"><i class="fa-solid fa-copy"></i><span>이 기록 복사</span></button><pre>${esc(formatLog(l))}</pre></div></details>`).join('');
 }
 function refreshLogViews() {
     $('.gpen-loglist').html(renderLogItems());
@@ -299,13 +328,64 @@ function resolveConnection(st) {
 let run = null;
 let runCounter = 0;
 
+/* 환경 정보 (기기 종류·브라우저·접속 방식. 실제 주소는 저장하지 않고 분류만 함) */
+function envText() { // 기기 종류만 기록 (주소·브라우저·화면 크기는 남기지 않음)
+    try {
+        const ua = navigator.userAgent || '';
+        const os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Windows/i.test(ua) ? 'Windows' : /Mac OS X|Macintosh/i.test(ua) ? 'Mac' : '기타';
+        return `확장 v${VERSION} / ${os}`;
+    } catch { return `확장 v${VERSION}`; }
+}
+function currentModel() { try { return ctx().getChatCompletionModel?.() || ''; } catch { return ''; } }
+
+/* 응답 해석: API마다 모양이 달라 여러 위치를 확인한다. 못 찾은 값은 비워 두고 추정하지 않음 */
 function parseResponse(res) {
-    if (typeof res === 'string') return { text: res, finish: '' };
+    if (typeof res === 'string') return { apiError: '', text: res, finish: '', usage: null, model: '', block: '', shape: '문자열 (이 경로는 종료 사유·토큰 정보를 주지 않아요)' };
+    const src = [res, res?.data, res?.responseData].filter(x => x && typeof x === 'object');
+    const pick = f => { for (const s of src) { const v = f(s); if (v !== undefined && v !== null && v !== '') return v; } return undefined; };
     const choice = res?.choices?.[0];
-    const text = res?.content?.[0]?.text ?? (typeof res?.content === 'string' ? res.content : undefined)
+    let text = res?.content?.[0]?.text ?? (typeof res?.content === 'string' ? res.content : undefined)
         ?? choice?.message?.content ?? choice?.text ?? '';
-    const finish = choice?.finish_reason || res?.stop_reason || res?.finish_reason || '';
-    return { text: typeof text === 'string' ? text : String(text ?? ''), finish };
+    if (typeof text !== 'string') text = String(text ?? '');
+    if (!text) { // Gemini 원본 형식 (생각 부분은 제외)
+        const parts = pick(s => s.candidates?.[0]?.content?.parts);
+        if (Array.isArray(parts)) text = parts.filter(p => !p?.thought).map(p => p?.text || '').join('');
+    }
+    const finish = String(pick(s => s.choices?.[0]?.finish_reason ?? s.choices?.[0]?.finishReason ?? s.stop_reason ?? s.finish_reason ?? s.finishReason
+        ?? s.candidates?.[0]?.finishReason ?? s.candidates?.[0]?.finish_reason) ?? '');
+    const u = pick(s => s.usage ?? s.usageMetadata);
+    let usage = null;
+    if (u && typeof u === 'object') {
+        const num = v => (v === undefined || v === null || !Number.isFinite(Number(v))) ? null : Number(v);
+        usage = {
+            in: num(u.prompt_tokens ?? u.input_tokens ?? u.promptTokenCount),
+            out: num(u.completion_tokens ?? u.output_tokens ?? u.candidatesTokenCount),
+            total: num(u.total_tokens ?? u.totalTokenCount),
+            think: num(u.completion_tokens_details?.reasoning_tokens ?? u.thoughtsTokenCount ?? u.reasoning_tokens),
+            thinkSeparate: u.thoughtsTokenCount !== undefined, // Gemini는 생각 토큰이 출력 토큰과 따로 집계됨
+        };
+    }
+    let shape = '';
+    try {
+        shape = `최상위 키: ${Object.keys(res || {}).slice(0, 12).join(', ') || '없음'}`;
+        if (choice && typeof choice === 'object') shape += ` / choices[0] 키: ${Object.keys(choice).join(', ')}`;
+    } catch { /* 무시 */ }
+    let apiError = '';
+    const er = pick(s => s.error);
+    if (er) apiError = (typeof er === 'string' ? er : `${er.code ? `[${er.code}] ` : ''}${er.message || er.status || JSON.stringify(er)}`).slice(0, 300);
+    return { apiError, text, finish, usage, model: String(pick(s => s.model ?? s.modelVersion) ?? ''), block: String(pick(s => s.promptFeedback?.blockReason) ?? ''), shape };
+}
+// 종료 상태 분류: 확인된 값만 근거로 삼고, 모르면 '미확인'으로 둔다
+function classifyEnd(p, maxTokens) {
+    const f = p.finish || '', u = p.usage;
+    const used = u && u.out != null ? u.out + (u.thinkSeparate ? (u.think || 0) : 0) : null;
+    if (p.block) return { status: `안전 필터로 차단됨 (${p.block})`, kind: 'safety' };
+    if (/MAX_TOKENS|max_tokens|^length$/i.test(f)) return { status: '출력 토큰 상한 도달', kind: 'length' };
+    if (/SAFETY|PROHIBITED|BLOCKLIST|SPII|RECITATION|content_filter/i.test(f)) return { status: '안전 필터로 종료', kind: 'safety' };
+    if (!f && used != null && used >= maxTokens * 0.97) return { status: '출력 토큰 상한 도달', kind: 'length' };
+    if (/(^|_)stop(_sequence)?$|end_turn/i.test(f)) return { status: '정상 완료', kind: 'ok' };
+    if (f) return { status: `기타 종료 사유 (${f})`, kind: 'other' };
+    return { status: '종료 사유 미확인', kind: 'unknown' };
 }
 
 async function runGhostpen(mode) {
@@ -317,97 +397,177 @@ async function runGhostpen(mode) {
     const { draft: input, request } = splitRequest(rawText);
     const id = ++runCounter;
     const controller = new AbortController();
-    run = { id, controller, mode, cancelled: false, timedOut: false };
+    run = { id, controller, mode, cancelled: false, timedOut: false, cancelReason: '' };
+    const me = run; // cancelRun이 run을 비워도 기록에 쓸 수 있게 따로 잡아 둠
     setBusy(mode, true);
-    const onInput = () => { if (run?.id === id && ta.value !== rawText) cancelRun(); };
+    const CHANGED = '입력창 내용이 바뀜 (직접 수정 또는 전송)';
+    const onInput = () => { if (run?.id === id && ta.value !== rawText) cancelRun(CHANGED); };
     // 전송할 때 ST가 입력창을 코드로 비우면 입력 신호가 안 올 수 있어서, 대필 중에만 0.25초마다 값을 비교한다
     const poll = setInterval(() => {
         if (run?.id !== id) return;
-        if (ta.value !== rawText) cancelRun();
+        if (ta.value !== rawText) cancelRun(CHANGED);
     }, 250);
     const stopWatch = () => { ta.removeEventListener('input', onInput); clearInterval(poll); };
     ta.addEventListener('input', onInput);
     const t0 = Date.now();
-    const conn = resolveConnection(st);
-    const log = {
-        mode: mode === 'unified' ? `${MODE.unified.label} (${MODE[pick].label})` : MODE[mode].label, intensity: INT_LABEL[st.intensity], length: `${st.minChars}~${st.maxChars}자 / 최대 출력 ${st.maxTokens}토큰`,
+    let conn;
+    try { conn = resolveConnection(st); } catch (e) { conn = { kind: 'raw', profileId: '', profile: null, missing: false, resolveError: e }; }
+    const minC = Number(st.minChars) || 0, maxC = Number(st.maxChars) || 0;
+    const maxTokens = Math.max(256, Number(st.maxTokens) || DEFAULTS.maxTokens);
+    const api = conn.profile?.api || c.mainApi || '';
+    let model = conn.profile?.model || currentModel();
+    // 기록 틀에 채울 값 (공통 틀은 formatLog 참고. 비어 있으면 '해당 없음'으로 표시됨)
+    const rec = {
+        modeText: `${mode === 'unified' ? `${MODE.unified.label} (${MODE[pick].label})` : MODE[mode].label} / ${INT_LABEL[st.intensity]}`,
+        inputText: `${input.length}자 / 요청 줄 ${request ? '있음' : '없음'}`,
         source: conn.kind === 'profile' ? `프로필: ${conn.profile?.name || '찾을 수 없음'}` : '선택 안 함 (지금 사용 중인 연결과 프리셋 그대로)',
-        api: conn.profile?.api || c.mainApi || '', inputChars: input.length,
-        env: `확장 v${VERSION}`,
+        limits: `${maxTokens} / ${Math.max(10, st.timeoutSec)}초`,
+        env: envText(),
     };
-    let stage = '준비';
+    let stage = '준비', p = null, tApi0 = 0, tApi1 = 0;
+    const steps = []; // 단계별 경과 시간 (초)
+    const go = name => { stage = name; steps.push(`${name} ${((Date.now() - t0) / 1000).toFixed(1)}`); };
+    go('준비');
+    const timeText = () => {
+        const tot = `${((Date.now() - t0) / 1000).toFixed(1)}초`;
+        if (!tApi0) return tot;
+        return `${tot} (${tApi1 ? `API 응답 ${((tApi1 - tApi0) / 1000).toFixed(1)}초` : `API 대기 ${((Date.now() - tApi0) / 1000).toFixed(1)}초, 응답 못 받음`})`;
+    };
+    const tokensText = () => {
+        const u = p?.usage;
+        if (!u) return `${p ? NOAPI : '해당 없음 (응답 받기 전)'} / 상한 ${maxTokens}`;
+        const parts = [['입력', u.in], ['출력', u.out], ['추론', u.think]].filter(([, v]) => v != null).map(([k, v]) => `${k} ${v}`);
+        const sum = u.thinkSeparate && u.out != null && u.think != null ? ` (출력+추론 ${u.out + u.think})` : '';
+        return `${parts.join(' / ') || NOAPI} / 상한 ${maxTokens}${sum}`;
+    };
+    const finishText = () => !p ? '해당 없음 (응답 받기 전)' : p.finish || (conn.kind === 'raw' ? `${NOAPI} (현재 연결 경로는 글자만 돌려줘요)` : NOAPI);
+    // 기록은 요청 하나당 한 번만 남기고, 기록이 실패해도 대필에는 영향을 주지 않는다
+    let logged = false;
+    const put = (level, title, o = {}) => {
+        if (logged) return; logged = true;
+        try {
+            addLog({
+                v: 2, level, title, endStatus: title, ...rec, ...o,
+                finish: finishText(), tokens: tokensText(), timeText: timeText(),
+                apiModel: `${api || NOAPI} / ${model || NOAPI}`,
+                shape: p && (!p.finish || !p.text) ? p.shape : '', // 종료 사유를 못 찾았을 때만 응답 구조를 남김 (어디에 있는지 찾는 단서)
+                steps: `${steps.join(' → ')} (초)`,
+            });
+        } catch { /* 무시 */ }
+    };
+    const putCancel = late => put('cancel', '취소됨', {
+        note: '오류 아님. 결과는 입력창에 들어가지 않았어요.',
+        fact: late ? 'API 응답이 도착한 뒤에 취소가 처리돼 결과를 버렸어요' : `"${stage}" 단계에서 취소됐어요`,
+        cancelBy: me.cancelReason || '확인 불가', quote: '해당 없음 (결과 없음)',
+    });
     const timer = setTimeout(() => { if (run?.id === id) run.timedOut = true; controller.abort(); }, Math.max(10, st.timeoutSec) * 1000);
+    const fail = (msg, title) => Object.assign(new Error(msg), { title });
     try {
-        if (conn.missing) throw new Error('선택한 연결 프로필을 찾을 수 없어요. 프로필이 삭제됐을 수 있어요. 설정에서 다시 고르거나 "선택 안 함"으로 바꿔 주세요.');
+        if (conn.resolveError) throw conn.resolveError;
+        if (conn.missing) throw fail('선택한 연결 프로필을 찾을 수 없어요. 프로필이 삭제됐을 수 있어요. 설정에서 다시 고르거나 "선택 안 함"으로 바꿔 주세요.', '연결 프로필 없음');
+        go('요청 구성');
         const messages = buildMessages(input, pick, st, request);
-        const maxTokens = Math.max(256, Number(st.maxTokens) || DEFAULTS.maxTokens);
-        log.request = `메시지 ${messages.length}개 / 시스템 ${messages[0].content.length}자 / 사용자 ${messages[1].content.length}자 / 최대 출력 ${maxTokens}`;
+        rec.request = `메시지 ${messages.length}개 / 시스템 ${messages[0].content.length}자 / 사용자 ${messages[1].content.length}자`;
 
         let res;
         if (conn.kind === 'raw') {
-            if (typeof c.generateRaw !== 'function') throw new Error('generateRaw를 찾을 수 없어요. SillyTavern을 업데이트하거나 연결 프로필을 만들어 주세요.');
-            stage = 'API 요청 (지금 사용 중인 연결)';
-            const p = c.generateRaw({
+            if (typeof c.generateRaw !== 'function') throw fail('generateRaw를 찾을 수 없어요. SillyTavern을 업데이트하거나 연결 프로필을 만들어 주세요.', '필요한 기능 없음');
+            go('API 요청 (지금 사용 중인 연결)');
+            tApi0 = Date.now();
+            const gp = c.generateRaw({
                 prompt: c.mainApi === 'openai' ? messages.slice(1) : messages[1].content,
                 systemPrompt: messages[0].content, responseLength: maxTokens, trimNames: false,
                 signal: controller.signal, // 고펜 자기 요청에만 취소 신호 전달 (지원하지 않는 버전이면 무시됨)
             });
-            p.catch(() => {});
+            gp.catch(() => {});
             const aborted = new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(new DOMException('요청이 중단되었어요.', 'AbortError'))));
-            res = await Promise.race([p, aborted]);
+            res = await Promise.race([gp, aborted]);
         } else {
             const Svc = c.ConnectionManagerRequestService;
-            if (!Svc) throw new Error('ConnectionManagerRequestService를 찾을 수 없어요. SillyTavern을 최신 버전으로 업데이트하고 Connection Manager 확장이 켜져 있는지 확인하세요.');
-            stage = 'API 요청';
+            if (!Svc) throw fail('ConnectionManagerRequestService를 찾을 수 없어요. SillyTavern을 최신 버전으로 업데이트하고 Connection Manager 확장이 켜져 있는지 확인하세요.', '필요한 기능 없음');
+            go('API 요청');
+            tApi0 = Date.now();
             res = await Svc.sendRequest(conn.profileId, messages, maxTokens,
                 { stream: false, signal: controller.signal, extractData: false, includePreset: true, includeInstruct: true }, {});
         }
+        tApi1 = Date.now();
 
-        if (run?.id !== id || run.cancelled) return; // 취소된 요청은 무시
-        stage = '응답 검사';
-        const { text: raw, finish } = parseResponse(res);
-        log.finish = finish || '(정보 없음)';
-        const out = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^```[a-z]*\n?|\n?```$/g, '').replace(/^\s*<draft>\s*|\s*<\/draft>\s*$/gi, '').trim();
-        log.outputChars = out.length;
+        if (run?.id !== id || me.cancelled) { putCancel(true); return; } // 취소된 요청은 결과를 쓰지 않음
+        go('응답 검사');
+        p = parseResponse(res);
+        if (p.model) model = p.model;
+        const out = p.text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^```[a-z]*\n?|\n?```$/g, '').replace(/^\s*<draft>\s*|\s*<\/draft>\s*$/gi, '').trim();
         if (!out) {
-            throw new Error(/length|max_tokens/i.test(finish)
+            if (p.apiError) throw fail(`API가 오류를 돌려줬어요: ${p.apiError}`, 'API가 오류를 돌려줌'); // 응답은 왔는데 안에 오류가 들어 있는 경우
+            throw fail(/length|max_tokens/i.test(p.finish)
                 ? '응답이 비어 있어요. 출력 토큰 상한에 걸렸을 수 있어요. 추론 모델은 생각에도 토큰을 쓰니 생성 옵션에서 최대 출력 토큰을 늘려 보세요.'
-                : '응답이 비어 있어요.');
+                : '응답이 비어 있어요.', '응답 비어 있음');
         }
+        rec.chars = `${out.length}자 (권장 ${minC}~${maxC}자)`;
 
-        // 결과는 항상 입력창에 넣고 경고만 기록
-        const warns = [];
-        if (/length|max_tokens/i.test(finish)) warns.push('결과가 출력 길이 상한에서 잘렸을 수 있어요.');
+        // 결과는 항상 입력창에 넣고, 확인된 사실과 추정을 나눠 기록
+        go('결과 검증');
+        const end = classifyEnd(p, maxTokens);
+        const short = minC > 0 && out.length < minC * 0.8;
         const quoted = request ? [] : extractQuoted(input); // 요청이 있으면 대사 변경이 의도일 수 있어 검사하지 않음
-        const changedList = quoted.filter(q => !out.includes(q));
-        if (changedList.length) { // 어떤 대사가 달라졌는지 앞부분만 짧게 보여 줌 (최대 5개, 한 개당 30자)
-            const cut = q => q.length > 30 ? `${q.slice(0, 30)}…` : q;
-            const shown = changedList.slice(0, 5).map(cut).join(' ');
-            const more = changedList.length > 5 ? ` 외 ${changedList.length - 5}개` : '';
-            warns.push(`따옴표 안 내용 ${quoted.length}개 중 ${changedList.length}개가 원문과 달라요. 달라진 것: ${shown}${more}`);
-        }
+        const changed = quoted.filter(q => !out.includes(q.slice(1, -1))); // 따옴표 종류가 바뀐 것(" → “ ”)은 손상으로 보지 않음. 대사 내용은 기록하지 않고 개수만 남김
+        const lastQuoteMissing = quoted.length > 0 && changed.includes(quoted[quoted.length - 1]);
+        rec.quote = request ? '해당 없음 (요청 줄이 있어 검사 안 함)' : !quoted.length ? '해당 없음 (원문에 따옴표 대사 없음)'
+            : changed.length ? `${quoted.length}개 중 ${changed.length}개 손상` : `${quoted.length}개 모두 있음`;
 
+        const facts = [], guess = [];
+        const u = p.usage;
+        if (end.kind === 'length') {
+            facts.push(p.finish ? `API가 종료 사유를 "${p.finish}"로 알려줬어요 (출력 토큰 상한 도달)` : '종료 사유는 받지 못했지만 출력 토큰 사용량이 상한에 도달했어요');
+            if (u?.think != null && u?.out != null) facts.push(`추론에 ${u.think}토큰, 글에 ${u.out}토큰 사용`);
+        } else if (end.kind === 'safety') {
+            facts.push(p.block ? `API가 요청을 차단했어요 (${p.block})` : `API가 종료 사유를 "${p.finish}"로 알려줬어요 (안전 필터/정책)`);
+        } else if (end.kind === 'other') {
+            facts.push(`종료 사유 "${p.finish}"는 이 확장이 분류하지 못했어요`);
+        } else if (end.kind === 'unknown') {
+            facts.push('API 응답에서 종료 사유를 찾지 못했어요');
+            if (short) {
+                facts.push(`결과 ${out.length}자로 권장 최소 ${minC}자보다 많이 짧아요`);
+                guess.push('출력 토큰 상한(추론 토큰 포함)에 걸려 잘렸을 가능성이 있지만 확정할 수 없어요');
+            } else facts.push('결과 길이는 정상 범위라 잘렸는지는 확인할 수 없어요');
+        } else if (short) facts.push('정상 종료 신호를 받았지만 권장 분량보다 많이 짧아요');
+        if (lastQuoteMissing && (end.kind === 'length' || (end.kind === 'unknown' && short))) guess.push('마지막 대사가 빠진 것은 글이 중간에 끝난 결과일 수 있어요');
+        if (facts.length) rec.fact = facts.join(' / ');
+        if (guess.length) rec.guess = guess.join(' / ');
+
+        const problem = ['length', 'safety', 'other'].includes(end.kind) || (end.kind === 'unknown' && short);
+        const okStatus = end.kind === 'ok' ? '정상 완료' : '완료 (종료 사유 미확인)';
+        let level = 'info', title = okStatus, endStatus = okStatus, note = '';
+        if (problem) {
+            level = 'warn'; title = endStatus = end.kind === 'unknown' ? '종료 사유 미확인 · 결과 짧음' : end.status;
+            note = WARN_NOTE[end.kind] + (changed.length ? ' 대사 손상도 확인해 보세요.' : '');
+        } else if (changed.length) {
+            level = 'warn'; title = `대사 손상 (${quoted.length}개 중 ${changed.length}개)`;
+            note = '오류 아님. 대사가 원문과 달라졌는지 확인해 보세요.';
+        }
         stopWatch(); // 결과를 넣을 때 생기는 입력 이벤트로 취소되지 않게
+        go('입력창 반영');
         lastOriginal = rawText; origKind = 'ghost'; // 요청 줄까지 포함해서 보관
         ta.value = out;
         ta.dispatchEvent(new Event('input', { bubbles: true }));
         ta.focus();
         updateRestoreUI();
-        if (warns.length) {
-            addLog({ level: 'warn', result: '⚠️ 결과는 입력창에 반영됨', reason: '확인 필요', detail: warns.join(' / '), ...log, elapsed: `${((Date.now() - t0) / 1000).toFixed(1)}초` });
-        }
+        go('완료');
+        put(level, title, { endStatus, note });
     } catch (e) {
-        if (!run || run.id !== id || run.cancelled) return; // 취소는 실패 아님
-        const timedOut = run.timedOut;
+        if (!run || run.id !== id || me.cancelled) { putCancel(false); return; } // 취소는 실패 아님
+        const timedOut = me.timedOut;
         failToast('👻 펜 뽀려요 대필 실패 ! 👻');
-        const detail = timedOut ? `${st.timeoutSec}초 안에 응답이 오지 않았어요.` : String(e?.message || e).slice(0, 600);
-        addLog({
-            level: 'fail', result: '❌ 실패', stage,
-            reason: timedOut ? '시간 초과' : (e?.name || 'Error'),
-            detail,
-            hint: explainError(detail, !!timedOut),
-            cause: e?.cause ? String(e.cause?.message || e.cause).slice(0, 300) : '',
-            ...log, elapsed: `${((Date.now() - t0) / 1000).toFixed(1)}초`,
+        const msg = timedOut ? `${st.timeoutSec}초 안에 응답이 오지 않았어요.` : String(e?.message || e).slice(0, 600);
+        const info = classifyError(msg, !!timedOut);
+        const title = timedOut ? '시간 초과' : (info.title || e?.title || '오류로 종료');
+        const code = e?.status ?? e?.code;
+        const cause = e?.cause ? ` / 원인(cause): ${String(e.cause?.message || e.cause).slice(0, 300)}` : '';
+        put('fail', title, {
+            note: `요청이 실패해서 입력창에 결과가 들어가지 않았어요.${timedOut ? ' 응답이 시간 제한 안에 오지 않아 요청을 중단했어요. 시간 제한을 늘려 보세요.' : info.hint ? ` ${info.hint}` : ''}`,
+            error: timedOut ? msg : `${e?.name || 'Error'}${code ? ` (${code})` : ''}: ${msg}${cause}`,
+            fact: `"${stage}" 단계에서 오류가 발생했어요`,
+            quote: '해당 없음 (결과 없음)',
         });
     } finally {
         stopWatch();
@@ -416,18 +576,18 @@ async function runGhostpen(mode) {
     }
 }
 
-function cancelRun() { // 진행 중인 대필·캐릭터를 즉시 취소 (알림 없음)
+function cancelRun(why = '') { // 진행 중인 대필·캐릭터를 즉시 취소 (알림 없음)
     if (!run) return;
     const m = run.mode;
-    run.cancelled = true;
+    run.cancelReason = why || '확인 불가'; run.cancelled = true;
     if (run.char) { // 채팅 모델 생성은 ST의 중지를 부르고, 입력칸이 비어 있으면 초안을 되돌림
         run = null; setBusy(m, false);
-        diagFinish('취소'); stopChatGeneration(); clearDirection(); restoreIfEmpty();
+        diagFinish('취소', why); stopChatGeneration(); clearDirection(); restoreIfEmpty();
         return;
     }
     run.controller.abort(); run = null; setBusy(m, false);
 }
-const cancelGhost = () => { if (run && !run.char) cancelRun(); }; // 전송·채팅 변경 때는 고펜 대필만 취소
+const cancelGhost = why => { if (run && !run.char) cancelRun(why); }; // 전송·채팅 변경 때는 고펜 대필만 취소
 
 /* 방향 지시 주입 (캐릭터와 방향 지시가 같이 씀): 안내문을 채팅 모델 프롬프트에 임시로 끼운다. 캐릭터는 여기에 응답 생성 시작까지 맡음 */
 const DIR_KEY = 'gpen_direction';
@@ -528,11 +688,23 @@ function diagApi() {
     try { model = c.getChatCompletionModel?.() || ''; } catch { /* 무시 */ }
     return [c.mainApi, c.chatCompletionSettings?.chat_completion_source, model].filter(Boolean).join(' / ');
 }
-function logDirectionFail(where, e) { // 방향 지시(// 줄) 주입이 조용히 실패하면 원인을 알 수 없어서 기록 (기록 자체가 실패해도 본 기능에는 영향 없음)
-    try { addLog({ level: 'warn', result: '⚠️ 방향 지시 주입 실패', reason: '방향 지시 주입 실패', stage: where, detail: String(e?.message || e).slice(0, 300), api: diagApi(), env: `확장 v${VERSION}` }); } catch { /* 무시 */ }
+// 대필이 아닌 기록(캐릭터·방향 지시·이벤트)도 같은 틀을 씀. 채워지지 않은 칸은 '해당 없음'으로 표시됨
+function putSys(level, title, o = {}) {
+    try { addLog({ v: 2, level, title, endStatus: title, apiModel: diagApi(), env: envText(), ...o }); } catch { /* 기록이 실패해도 본 기능에는 영향 없음 */ }
 }
-function putDiag(entry) { // 이상(경고)만 기록한다. 정상 종료는 기록하지 않음
-    addLog({ api: diagApi(), env: `확장 v${VERSION}`, ...entry });
+const charBase = (mode, draftChars) => ({ // 캐릭터 모드는 SillyTavern이 응답을 만들어서 확장이 볼 수 없는 칸이 많음
+    modeText: `${mode === 'unified' ? '올인원 (캐릭터)' : '캐릭터'} / 해당 없음 (고펜 강도를 쓰지 않아요)`,
+    inputText: draftChars ? `${draftChars}자 (방향 지시로 전달)` : '0자 (빈 초안: 캐릭터 시점 안내문 사용)',
+    source: '지금 사용 중인 연결 (SillyTavern이 응답을 생성)',
+    request: '해당 없음 (SillyTavern이 프롬프트를 구성)',
+    limits: '해당 없음 (SillyTavern 설정을 따름)',
+    finish: `${NOAPI} (SillyTavern이 생성해서 확장이 볼 수 없어요)`,
+    tokens: '해당 없음 (SillyTavern이 생성해서 확장이 볼 수 없어요)',
+    quote: '해당 없음 (캐릭터 모드는 대사 검사를 안 해요)',
+});
+function logDirectionFail(where, e) { // 방향 지시(// 줄) 주입이 조용히 실패하면 원인을 알 수 없어서 기록
+    const msg = String(e?.message || e).slice(0, 300);
+    putSys('warn', '방향 지시 주입 실패', { note: '오류 아님. 방향 지시(// 줄)가 반영됐는지 확인해 보세요.', fact: `"${where}" 단계에서 실패했어요`, error: `${e?.name || 'Error'}: ${msg}` });
 }
 function diagUnhook() {
     try { const es = ctx().eventSource; for (const [e, fn] of diagEvents()) (es.removeListener || es.off).call(es, e, fn); } catch { /* 무시 */ }
@@ -570,7 +742,7 @@ function diagPrompt(data) { // 모델로 가는 프롬프트에 방향 지시가
         diag.prompt = k < 0 ? '프롬프트에 방향 지시가 없음' : `텍스트 완성, 맨 끝에서 ${data.prompt.length - k}자 앞`;
     }
 }
-function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
+function diagFinish(how, why = '') { // how: 정상 / 중지 / 취소 / 채팅 변경
     const d = diag;
     if (!d) return;
     clearTimeout(d.watch); diagUnhook(); diag = null;
@@ -587,17 +759,20 @@ function diagFinish(how) { // how: 정상 / 중지 / 취소 / 채팅 변경
             else if (!d.found) warns.push('생성 프롬프트에서 방향 지시를 찾지 못했어요');
             else if (d.pos > 2) warns.push(`방향 지시가 프롬프트 맨 끝에서 ${d.pos}번째라 약할 수 있어요`);
         }
-        if (!warns.length) return; // 이상이 없으면 기록하지 않음
-        putDiag({
-            level: 'warn',
-            result: `⚠️ 캐릭터 이상 감지 (${how})`,
-            reason: `이상 감지 (${how})`,
-            detail: warns.join(' / '),
-            mode: MODE[d.mode].label, inputChars: d.draftChars,
-            ...diagFields(d),
+        const sec = ((Date.now() - d.t0) / 1000).toFixed(1);
+        const ai = added.filter(m => !m.is_user && !m.is_system);
+        const rec = {
+            ...charBase(d.mode, d.draftChars), ...diagFields(d),
+            chars: ai.length ? `AI 응답 ${ai.map(m => String(m.mes || '').length).join(' + ')}자` : '',
+            timeText: `${sec}초`,
+            fact: warns.join(' / '),
             chat: `시작 전 ${d.before}개 (마지막: ${d.last})${d.atStart === '변화 없음' ? '' : ` / 생성 시작 시 새 메시지: ${d.atStart ?? '시작 신호 없음'}`} / 종료 후 새 메시지: ${added.map(describeMsg).join(', ') || '없음'}`,
-            elapsed: `${((Date.now() - d.t0) / 1000).toFixed(1)}초`,
-        });
+            steps: `방향 지시 주입 → 응답 생성 ${d.started ? '시작' : '시작 신호 없음'} → ${how} (${sec}초)`,
+        };
+        if (how === '취소') putSys('cancel', '취소됨', { ...rec, note: '오류 아님. 응답 생성을 취소했어요.', cancelBy: why || '확인 불가' });
+        else if (how === '중지') putSys('cancel', '생성 중지됨', { ...rec, note: '오류 아님. 응답 생성이 중지됐어요.', cancelBy: '생성이 중지됨 (중지 버튼, 또는 생성 중 오류일 수 있어요)' });
+        else if (warns.length) putSys('warn', '캐릭터 응답 확인 필요', { ...rec, note: '오류 아님. 아래 확인된 사실을 확인해 보세요.' });
+        else putSys('info', '정상 완료', rec);
     }, 600);
 }
 async function runCharacter(mode) {
@@ -627,15 +802,24 @@ async function runCharacter(mode) {
         if (!run || run.id !== id) return; // 취소·중지는 실패 아님
         run = null; setBusy(mode, false);
         clearDirection(); restoreIfEmpty();
-        const f = diagFields(); diagDrop();
+        const d = diag, f = diagFields(); diagDrop();
         failToast('👻 캐릭터 응답 시작 실패 👻');
-        addLog({ level: 'fail', result: '❌ 실패', stage, reason: e?.name || 'Error', detail: String(e?.message || e).slice(0, 600), mode: MODE[mode].label, inputChars: draft.length, ...f, api: diagApi(), env: `확장 v${VERSION}` });
+        const msg = String(e?.message || e).slice(0, 600);
+        const info = classifyError(msg);
+        putSys('fail', info.title || '응답 생성 시작 실패', {
+            ...charBase(mode, draft.length), ...f,
+            finish: '해당 없음 (응답 생성 시작 전에 실패)', tokens: '해당 없음 (응답 생성 시작 전에 실패)',
+            timeText: d ? `${((Date.now() - d.t0) / 1000).toFixed(1)}초` : '',
+            note: `응답 생성을 시작하지 못했어요.${info.hint ? ` ${info.hint}` : ''}`,
+            error: `${e?.name || 'Error'}: ${msg}`, fact: `"${stage}" 단계에서 오류가 발생했어요`,
+            steps: `${stage} 단계에서 중단`,
+        });
     }
 }
 
 const unifiedKey = st => (PERSPECTIVE[st.unifiedPick] || st.unifiedPick === 'character') ? st.unifiedPick : 'first'; // 올인원이 고른 시점 (캐릭터 포함)
 function onIconClick(mode) {
-    if (run) { if (run.mode === mode) cancelRun(); return; } // 같은 아이콘을 다시 누르면 취소 (알림 없음)
+    if (run) { if (run.mode === mode) cancelRun('아이콘을 다시 눌러 취소'); return; } // 같은 아이콘을 다시 누르면 취소 (알림 없음)
     const pick = mode === 'unified' ? unifiedKey(S()) : mode;
     if (pick === 'character') runCharacter(mode); else runGhostpen(mode);
 }
@@ -899,8 +1083,9 @@ function renderPanel(root) {
 
         <div class="gpen-pane ${curTab === 'log' ? 'on' : ''}" data-pane="log">
           <div class="gpen-logbar">
-            <span class="gpen-muted">기록은 원문과 결과 내용 없이 개수와 오류만 저장돼요. (단, 달라진 따옴표 내용은 앞부분만 짧게 같이 저장돼요.) 최근 ${MAX_LOGS}건까지 보관해요.</span>
-            <button type="button" class="gpen-btn gpen-clear"><i class="fa-solid fa-trash"></i><span>지우기</span></button>
+            <span class="gpen-muted">기록은 원문과 결과 내용 없이 글자 수·토큰·오류 같은 정보만 저장돼요. (단, 결과에 없던 따옴표 내용은 앞부분만 짧게 같이 저장돼요.) 최근 ${MAX_LOGS}건까지, 정상·취소 기록은 ${MAX_PLAIN}건까지 보관해요.</span>
+            <span style="display:flex;gap:6px"><button type="button" class="gpen-btn gpen-copy-all"><i class="fa-solid fa-copy"></i><span>전체 복사</span></button>
+            <button type="button" class="gpen-btn gpen-clear"><i class="fa-solid fa-trash"></i><span>지우기</span></button></span>
           </div>
           <div class="gpen-loglist">${renderLogItems()}</div>
         </div>
@@ -1023,6 +1208,16 @@ function renderPanel(root) {
         btn.find('i').attr('class', 'fa-solid fa-check'); btn.find('span').text('복사됨');
         setTimeout(() => { btn.find('i').attr('class', 'fa-solid fa-copy'); btn.find('span').text('이 기록 복사'); }, 1500);
     });
+    root.on('click.gpen', '.gpen-copy-all', async function () {
+        const logs = S().logs;
+        if (!logs.length) return;
+        const t = `Ghostpen v${VERSION} 기록 ${logs.length}건\n\n${logs.map(formatLog).join('\n\n')}`;
+        try { await navigator.clipboard.writeText(t); }
+        catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+        const btn = $(this);
+        btn.find('i').attr('class', 'fa-solid fa-check'); btn.find('span').text('복사됨');
+        setTimeout(() => { btn.find('i').attr('class', 'fa-solid fa-copy'); btn.find('span').text('전체 복사'); }, 1500);
+    });
     root.on('click.gpen', '.gpen-clear', () => { S().logs = []; save(); refreshLogViews(); });
 }
 
@@ -1052,7 +1247,6 @@ function addDrawer() {
 }
 
 jQuery(() => {
-    { const st = S(); if (st.logs.some(l => l.level === 'info')) { st.logs = st.logs.filter(l => l.level !== 'info'); save(); } } // 이전 버전의 정상 기록 정리
     buildBar();
     addWandItem();
     addDrawer();
@@ -1060,8 +1254,8 @@ jQuery(() => {
         const { eventSource, event_types } = ctx();
         const missing = [];
         const on = (name, fn, core = true) => { const e = event_types?.[name]; if (e) eventSource.on(e, fn); else if (core) missing.push(name); };
-        on('MESSAGE_SENT', async id => { cancelGhost(); if (origKind === 'ghost') clearOriginal(); if (!(await applySendDirection(id))) { clearDirection(); keptReq = null; } }); // 대필 원문만 비움 (캐릭터·방향 지시 원문은 응답이 와야 지움). 방향 지시가 있으면 원문 보관 + 주입
-        on('CHAT_CHANGED', () => { cancelGhost(); endCharacter('채팅 변경'); clearOriginal(); keptReq = null; });
+        on('MESSAGE_SENT', async id => { cancelGhost('메시지 전송'); if (origKind === 'ghost') clearOriginal(); if (!(await applySendDirection(id))) { clearDirection(); keptReq = null; } }); // 대필 원문만 비움 (캐릭터·방향 지시 원문은 응답이 와야 지움). 방향 지시가 있으면 원문 보관 + 주입
+        on('CHAT_CHANGED', () => { cancelGhost('채팅 변경'); endCharacter('채팅 변경'); clearOriginal(); keptReq = null; });
         on('GENERATION_ENDED', () => endCharacter('정상'));
         on('GENERATION_STOPPED', () => endCharacter('중지'));
         // 대필 원문: 새 응답 생성이 시작되면 복원 아이콘 삭제 (스와이프·재생성·이어쓰기·백그라운드 생성은 제외). 캐릭터·방향 지시 원문은 아래 MESSAGE_RECEIVED에서 지움
@@ -1077,11 +1271,11 @@ jQuery(() => {
             if (idx > firstRespIdx) clearOriginal();
         });
         if (missing.length) { // 핵심 이벤트가 없으면 기능이 조용히 안 되므로 기록 (같은 내용은 한 건만 유지)
-            S().logs = S().logs.filter(l => l.reason !== '이벤트 등록 실패');
-            addLog({ level: 'warn', result: '⚠️ 이벤트 등록 실패', reason: '이벤트 등록 실패', detail: `SillyTavern에서 찾지 못한 이벤트: ${missing.join(', ')}`, env: `확장 v${VERSION}` });
+            S().logs = S().logs.filter(l => l.reason !== '이벤트 등록 실패' && l.title !== '이벤트 등록 실패');
+            putSys('warn', '이벤트 등록 실패', { note: '오류 아님. 확장은 계속 실행되지만 원문 복원 정리·방향 지시 같은 일부 기능이 안 될 수 있어요. SillyTavern 버전을 확인해 보세요.', fact: `SillyTavern에서 찾지 못한 이벤트: ${missing.join(', ')}` });
         }
     } catch { /* 무시 */ }
-    document.getElementById('send_but')?.addEventListener('click', () => cancelGhost(), true); // 전송 버튼 (대필 중이 아니면 아무 일도 안 함)
+    document.getElementById('send_but')?.addEventListener('click', () => cancelGhost('전송 버튼'), true); // 전송 버튼 (대필 중이 아니면 아무 일도 안 함)
     let tries = 0;
     const iv = setInterval(() => { addWandItem(); if ($('#ghostpen_wand').length || ++tries > 20) clearInterval(iv); }, 1000);
 });
