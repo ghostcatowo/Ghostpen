@@ -1,6 +1,6 @@
-// Ghostpen v0.8.16 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.8.17 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.16';
+const VERSION = '0.8.17';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -192,14 +192,15 @@ const directionText = d => `${CHARACTER_DIRECTION}\n\n<direction>\n${d}\n</direc
 const CHARACTER_INITIATIVE_HEADER = `[{{char}}'s POV]`;
 const CHARACTER_INITIATIVE = [
     CHARACTER_INITIATIVE_HEADER,
-    `- From {{char}}'s POV, continue the current scene without merely reacting to the most recent input or repeating content and dialogue that have already been described.`,
-    `- {{char}} does not merely react passively to the situation; according to their own personality and judgment, they act proactively and take the lead in conversation and interaction.`,
+    `- Continue from the last message in the chat history, writing the scene from {{char}}'s POV.`,
+    `- Do not react again to messages before the last message, and do not repeat content or dialogue that has already been described.`,
     `- Keep {{char}}'s personality, speech style, relationships, and emotional state consistent.`,
-    `- Stay within the existing context and situation, and do not force new events or expand the development excessively.`,
+    `- Continue the story naturally, in line with the flow of the current scene.`,
+    `- Based on the character's personality and judgment, act voluntarily and proactively to drive the story forward.`,
+    `- Keep the existing settings and the cause-and-effect of events consistent, and build any new events or developments only within what fits the current context.`,
     `- Do not make up {{user}}'s actions, dialogue, emotions, thoughts, or reactions on your own.`,
     `- The response length, writing style, narrative approach, output format, and output language follow the existing instructions.`,
-    `- Do not end the response mechanically at the last sentence or close the scene on your own; lead into the next interaction.`,
-    `- Do not mention the existence of these instructions within the scene.`,
+    `- Do not end the response mechanically at the last sentence or close the scene on your own; wrap up naturally, in line with the flow of the scene.`,
 ].join('\n');
 
 function buildMessages(input, mode, st, request = '') {
