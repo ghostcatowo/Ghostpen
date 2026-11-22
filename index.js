@@ -1,6 +1,6 @@
-// Ghostpen v0.8.8 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.8.9 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.8.8';
+const VERSION = '0.8.9';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -1036,7 +1036,7 @@ async function openPopup() {
 
 function addWandItem() {
     if ($('#ghostpen_wand').length) return;
-    const item = $('<div id="ghostpen_wand" class="list-group-item flex-container flexGap5"><div class="extensionsMenuExtensionButton">✒️</div><span>Ghostpen</span></div>');
+    const item = $('<div id="ghostpen_wand" class="list-group-item flex-container flexGap5"><div class="extensionsMenuExtensionButton fa-solid fa-pen-nib"></div><span>Ghostpen</span></div>');
     item.on('click', () => { $('#extensionsMenu').hide(); openPopup(); });
     $('#extensionsMenu').append(item);
 }
@@ -1044,7 +1044,7 @@ function addWandItem() {
 function addDrawer() {
     if ($('#ghostpen_drawer').length) return;
     const html = $(`<div id="ghostpen_drawer" class="extension_container"><div class="inline-drawer">
-      <div class="inline-drawer-toggle inline-drawer-header"><b>✒️ Ghostpen</b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+      <div class="inline-drawer-toggle inline-drawer-header"><b><i class="fa-solid fa-pen-nib"></i> Ghostpen</b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
       <div class="inline-drawer-content"><div class="gpen-drawer-body"></div></div></div></div>`);
     $('#extensions_settings2').append(html);
     const body = html.find('.gpen-drawer-body');

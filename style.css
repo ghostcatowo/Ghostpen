@@ -1,4 +1,4 @@
-/* Ghostpen v0.8.8 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석의 버전도 index.js와 같이 고칠 것) */
+/* Ghostpen v0.8.9 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석의 버전도 index.js와 같이 고칠 것) */
 /* .inline-drawer-content 의 display는 건드리지 않는다 (SillyTavern이 제어) */
 
 /* 입력창 위 아이콘 줄 (:where 라서 사용자 CSS가 항상 이김) */
@@ -44,7 +44,7 @@
 .gpen-icon.gpen-restore { display: none; }
 .gpen-icon.gpen-restore.gpen-show { display: inline-flex; }
 
-/* 버튼 (설정의 버튼·칸 모서리는 모두 12px로 통일) */
+/* 버튼: 모두 알약 모양 (칸 모서리는 아래 접이식 칸에서 16px로 통일) */
 .gpen-btn {
     display: inline-flex;
     align-items: center;
@@ -53,7 +53,7 @@
     min-height: 34px;
     padding: 0 12px;
     border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 12px;
+    border-radius: 999px;
     background: var(--SmartThemeBlurTintColor);
     color: var(--SmartThemeBodyColor);
     font: inherit;
@@ -159,7 +159,7 @@
     margin: 0 0 16px;
     padding: 4px 12px 8px;
     border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 12px;
+    border-radius: 16px;
 }
 
 /* 설정 접이식 칸: 닫혔을 때 높이를 시점 버튼(올인원 칸)과 같은 34px로 맞춤. 칸끼리 간격은 8px */
@@ -214,7 +214,7 @@
     padding: 6px 10px;
     border: 1px solid var(--SmartThemeBorderColor);
     border-left-width: 4px;
-    border-radius: 12px;
+    border-radius: 16px;
 }
 
 .gpen-log.fail { border-left-color: #e5534b; }
