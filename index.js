@@ -1,6 +1,6 @@
-// Ghostpen v0.9.0 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
+// Ghostpen v0.9.2 - SillyTavern 대필 확장 (버전을 올릴 때 이 주석과 아래 VERSION 두 곳을 같이 고칠 것)
 const MODULE = 'ghostpen';
-const VERSION = '0.9.0';
+const VERSION = '0.9.2';
 // 레이아웃을 추가할 때 고칠 곳: 여기 / buildBar의 레이아웃 분기와 클래스 지우기 / 설정 화면의 레이아웃 버튼 목록 / style.css의 #send_form.gpen-<값> 규칙
 const LAYOUTS = ['row', 'custom', 'ded1', 'ded2']; // 레이아웃 값 목록: row 기본 / custom 커스텀 / ded1 전용1(비행기 윗줄) / ded2 전용2(비행기 아랫줄). 목록에 없는 값은 'row'로 처리
 
@@ -62,8 +62,17 @@ const save = () => ctx().saveSettingsDebounced();
 const matchPreset = st => Object.entries(LENGTH_PRESETS).find(([, [a, b]]) => a === st.minChars && b === st.maxChars)?.[0];
 
 /* 프롬프트 */
-const PRIORITY_LINE = `[Request] -> [Rules] -> [Description] -> [Point of view] -> [Intensity] -> [Length]`;
-const PRIORITY_LINE_PUNCT = `[Request] -> [Rules] -> [Punctuation] -> [Description] -> [Point of view] -> [Intensity] -> [Length]`; // 문장 부호를 켰을 때만 쓰는 우선순위
+const PRIORITY_LINE = `[Request] -> [Rules] -> [Output language] -> [Description] -> [Point of view] -> [Intensity] -> [Length]`;
+const PRIORITY_LINE_PUNCT = `[Request] -> [Rules] -> [Output language] -> [Punctuation] -> [Description] -> [Point of view] -> [Intensity] -> [Length]`; // 문장 부호를 켰을 때만 쓰는 우선순위
+// 출력 언어 (대필 시스템 프롬프트의 맨 끝, [Output] 바로 뒤에 항상 들어감. 언어 규칙은 여기 한 곳에만 둔다. SYSTEM_PROMPT보다 먼저 선언해야 함)
+const OUTPUT_LANGUAGE = [
+    `[Output language]`,
+    `- If the <request> specifies an output language, that language takes priority.`,
+    `- If there is a draft, decide the output language by the main language used in its narration.`,
+    `- If the draft is empty, follow the language of the most recent {{user}} message; if there is none, write in Korean.`,
+    `- Decide the output language regardless of which language was used for input or output before, or what the translation direction was. It is also not affected by the character description or the persona.`,
+    `- For a draft that mixes languages, write in its main language, but do not translate or change dialogue and expressions in another language that were used on purpose.`,
+].join('\n');
 const SYSTEM_PROMPT = [
     `[Purpose]`,
     `Ghostwrite the <draft> into a finished passage that can be sent to the RP as is.`,
@@ -100,10 +109,11 @@ const SYSTEM_PROMPT = [
     ``,
     `[Output]`,
     `- Output only the finished passage. Do not add reasoning, information blocks, or the like.`,
-    `- Write in the same language as the draft. If the draft is empty, write in Korean.`,
     `- End any narration you newly write with a complete sentence. Dialogue inside double or curly double quotes stays exactly as in the draft, even if the sentence is unfinished.`,
     `- Even when you restructure sentences and paragraphs, separate dialogue and narration with line breaks so they do not run together on one line. Split narration into paragraphs at points where the action, gaze, emotion, or setting shifts, and do not pack several different flows into one paragraph.`,
     `- Before you output, check that the dialogue inside double or curly double quotes matches the draft and that there are no actions, reactions, emotions, or sensations of {{char}} or NPCs that are not in the draft. If anything is off, fix it.`,
+    ``,
+    OUTPUT_LANGUAGE,
 ].join('\n');
 
 // 문장 부호 (설정에서 켰을 때만 사용자 메시지의 [Point of view] 바로 뒤에 끼움. 1·3인칭·고정X 대필 전용이고 캐릭터는 이 경로를 쓰지 않음)
@@ -136,6 +146,7 @@ const PUNCTUATION = [
     `- Do not add quotation marks to narration, description, sound effects, or onomatopoeia.`,
     `- In this section, other than adding quotation marks, do not modify or restructure any sentence or paragraph. Line breaks follow the [Output] rules.`,
 ].join('\n');
+
 
 const PERSPECTIVE = {
     first: [
